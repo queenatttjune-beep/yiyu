@@ -40,6 +40,17 @@ public enum TodoBook {
         }
     }
 
+    public static func editing(_ id: UUID, title: String, plannedDay: DayKey?, in todos: [Todo]) -> [Todo] {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return todos }
+        return updating(id, in: todos) { todo in
+            var copy = todo
+            copy.title = trimmed
+            copy.plannedDay = plannedDay
+            return copy
+        }
+    }
+
     public static func removing(_ id: UUID, from todos: [Todo]) -> [Todo] {
         todos.filter { $0.id != id }
     }

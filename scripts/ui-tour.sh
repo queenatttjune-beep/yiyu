@@ -14,8 +14,13 @@ if [ "${1:-}" = "--interactive" ]; then
   MODE="interactive"
   echo "Interactive tour: the test panel will take keyboard focus for ~15 s."
 fi
+if [ "${1:-}" = "--editing" ]; then
+  MODE="editing"
+  echo "Editing tour: the test panel will take keyboard focus while checking save and cancel."
+fi
 
 OUT="build/tour"
+[ "$MODE" = "editing" ] && OUT="build/editing-tour"
 BUNDLE="$OUT/一隅-tour.app"
 LOG="$OUT/tour.log"
 TIMEOUT_SECONDS=180
@@ -26,7 +31,9 @@ mkdir -p "$OUT/data" "$BUNDLE/Contents/MacOS"
 swift build
 cp "$(swift build --show-bin-path)/Yiyu" "$BUNDLE/Contents/MacOS/Yiyu"
 cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
-plutil -replace CFBundleIdentifier -string "$(plutil -extract CFBundleIdentifier raw Resources/Info.plist).tour" "$BUNDLE/Contents/Info.plist"
+TOUR_BUNDLE_ID="$(plutil -extract CFBundleIdentifier raw Resources/Info.plist).tour"
+[ "$MODE" = "editing" ] && TOUR_BUNDLE_ID="$TOUR_BUNDLE_ID.editing"
+plutil -replace CFBundleIdentifier -string "$TOUR_BUNDLE_ID" "$BUNDLE/Contents/Info.plist"
 codesign --force --sign - "$BUNDLE" 2>/dev/null
 
 # Fake AI and 和风天气 services on localhost, so the diary-polish and weather steps run without real keys.
@@ -47,13 +54,17 @@ start_mock() {
   exit 1
 }
 
-start_mock scripts/mock-ai-server.py "$OUT/mock-ai.log"
-ai_port="$mock_port"
-start_mock scripts/mock-qweather-server.py "$OUT/mock-qweather.log"
-weather_port="$mock_port"
+MOCK_ENV=()
+if [ "$MODE" != "editing" ]; then
+  start_mock scripts/mock-ai-server.py "$OUT/mock-ai.log"
+  ai_port="$mock_port"
+  start_mock scripts/mock-qweather-server.py "$OUT/mock-qweather.log"
+  weather_port="$mock_port"
+  MOCK_ENV=("YIYU_TOUR_AI_URL=http://127.0.0.1:$ai_port/v1" "YIYU_TOUR_WEATHER_URL=http://127.0.0.1:$weather_port")
+fi
 
-YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" YIYU_TOUR_SHOTS="$PWD/$OUT" \
-  YIYU_TOUR_AI_URL="http://127.0.0.1:$ai_port/v1" YIYU_TOUR_WEATHER_URL="http://127.0.0.1:$weather_port" \
+env YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" YIYU_TOUR_SHOTS="$PWD/$OUT" \
+  ${MOCK_ENV[@]+"${MOCK_ENV[@]}"} \
   "$BUNDLE/Contents/MacOS/Yiyu" >"$LOG" 2>&1 &
 APP_PID=$!
 

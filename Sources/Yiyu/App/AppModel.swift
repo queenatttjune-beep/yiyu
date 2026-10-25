@@ -18,6 +18,7 @@ final class AppModel {
     let calendar: Calendar
     let labels: Labels
     let parser: QuickTimeParser
+    let todoParser: TodoInputParser
 
     @ObservationIgnored private let store: DataStore?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -31,6 +32,7 @@ final class AppModel {
         self.calendar = calendar
         self.labels = Labels(calendar: calendar)
         self.parser = QuickTimeParser(calendar: calendar)
+        self.todoParser = TodoInputParser(calendar: calendar)
         self.now = now
         self.lastReminderCheck = now
     }
@@ -48,9 +50,14 @@ final class AppModel {
         Labels.todaySummary(remaining: remainingToday, total: todayTodos.count)
     }
 
-    func addTodo(_ title: String, forToday: Bool) {
-        let day = forToday ? today : nil
-        update { $0.with(todos: TodoBook.adding(title, plannedDay: day, to: $0.todos, now: Date())) }
+    @discardableResult
+    func addTodo(_ input: String, forToday: Bool, now: Date = Date()) -> Todo? {
+        let parsed = todoParser.parse(input, now: now)
+        guard parsed.unresolvedDate == nil, !parsed.title.isEmpty else { return nil }
+        let day = parsed.plannedDay ?? (forToday ? DayKey(now, calendar: calendar) : nil)
+        let id = UUID()
+        update { $0.with(todos: TodoBook.adding(parsed.title, plannedDay: day, to: $0.todos, now: now, id: id)) }
+        return data.todos.first { $0.id == id }
     }
 
     func toggleTodo(_ id: UUID) {
@@ -62,8 +69,8 @@ final class AppModel {
         update { $0.with(todos: TodoBook.planning(id, for: day, in: $0.todos)) }
     }
 
-    func renameTodo(_ id: UUID, to title: String) {
-        update { $0.with(todos: TodoBook.renaming(id, to: title, in: $0.todos)) }
+    func updateTodo(_ id: UUID, title: String, plannedDay: DayKey?) {
+        update { $0.with(todos: TodoBook.editing(id, title: title, plannedDay: plannedDay, in: $0.todos)) }
     }
 
     func deleteTodo(_ id: UUID) {
@@ -95,6 +102,27 @@ final class AppModel {
     func toggleReminder(_ id: UUID) {
         forgetFired(id)
         update { $0.with(reminders: ReminderBook.completing(id, in: $0.reminders, now: Date(), calendar: calendar)) }
+    }
+
+    func updateReminder(_ id: UUID, title: String, at fireAt: Date, repeatRule: RepeatRule) {
+        let reminders = ReminderBook.editing(
+            id, title: title, fireAt: fireAt, repeatRule: repeatRule,
+            in: data.reminders, now: Date(), calendar: calendar
+        )
+        guard let previous = data.reminders.first(where: { $0.id == id }),
+              let edited = reminders.first(where: { $0.id == id }), previous != edited
+        else { return }
+        if previous.fireAt != edited.fireAt || previous.repeatRule != edited.repeatRule {
+            forgetFired(id)
+        } else {
+            firedReminders = firedReminders.map { reminder in
+                guard reminder.id == id else { return reminder }
+                var copy = reminder
+                copy.title = edited.title
+                return copy
+            }
+        }
+        update { $0.with(reminders: reminders) }
     }
 
     func snoozeReminder(_ id: UUID, by interval: TimeInterval) {

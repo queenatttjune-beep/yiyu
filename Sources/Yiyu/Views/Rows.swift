@@ -13,8 +13,6 @@ struct TodoRow: View {
 
     @State private var isHovering = false
     @State private var isEditing = false
-    @State private var draft = ""
-    @FocusState private var isEditorFocused: Bool
 
     private var isPlannedForToday: Bool {
         guard let planned = todo.plannedDay else { return false }
@@ -22,6 +20,22 @@ struct TodoRow: View {
     }
 
     var body: some View {
+        Group {
+            if isEditing {
+                TodoEditor(todo: todo, model: model) { isEditing = false }
+            } else {
+                row
+                    .contextMenu { menu }
+            }
+        }
+        .padding(.horizontal, Theme.rowInset)
+        .padding(.vertical, 7)
+        .background(isHovering ? Theme.field.opacity(0.5) : Color.clear)
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+    }
+
+    private var row: some View {
         HStack(alignment: .top, spacing: 10) {
             CheckMark(isOn: todo.isDone) { model.toggleTodo(todo.id) }
                 .padding(.top, 1)
@@ -29,35 +43,16 @@ struct TodoRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             trailing
         }
-        .padding(.horizontal, Theme.rowInset)
-        .padding(.vertical, 7)
-        .background(isHovering ? Theme.field.opacity(0.5) : Color.clear)
-        .contentShape(Rectangle())
-        .onHover { isHovering = $0 }
-        .contextMenu { menu }
     }
 
-    @ViewBuilder private var title: some View {
-        if isEditing {
-            TextField("", text: $draft)
-                .textFieldStyle(.plain)
-                .font(Theme.body)
-                .foregroundStyle(Theme.ink)
-                .focused($isEditorFocused)
-                .onSubmit(commitEdit)
-                .onExitCommand { isEditing = false }
-                .onAppear { isEditorFocused = true }
-                .onChange(of: isEditorFocused) { _, focused in
-                    if !focused { commitEdit() }
-                }
-        } else {
-            Text(todo.title)
-                .font(Theme.body)
-                .foregroundStyle(todo.isDone ? Theme.inkMuted : Theme.ink)
-                .strikethrough(todo.isDone, color: Theme.inkMuted)
-                .fixedSize(horizontal: false, vertical: true)
-                .onTapGesture(count: 2, perform: beginEdit)
-        }
+    private var title: some View {
+        Text(todo.title)
+            .font(Theme.body)
+            .foregroundStyle(todo.isDone ? Theme.inkMuted : Theme.ink)
+            .strikethrough(todo.isDone, color: Theme.inkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+            .onTapGesture(count: 2, perform: beginEdit)
+            .help("双击编辑")
     }
 
     @ViewBuilder private var trailing: some View {
@@ -69,6 +64,9 @@ struct TodoRow: View {
                     .padding(.top, 2)
             }
             if isHovering {
+                IconButton(systemName: "pencil", help: "编辑待办", size: 11, action: beginEdit)
+                    .accessibilityLabel("编辑待办")
+                    .padding(.top, -3)
                 IconButton(systemName: "trash", help: "删除", size: 11) { model.deleteTodo(todo.id) }
                     .padding(.top, -3)
             }
@@ -113,14 +111,7 @@ struct TodoRow: View {
     }
 
     private func beginEdit() {
-        draft = todo.title
         isEditing = true
-    }
-
-    private func commitEdit() {
-        guard isEditing else { return }
-        model.renameTodo(todo.id, to: draft)
-        isEditing = false
     }
 }
 
@@ -129,11 +120,28 @@ struct ReminderRow: View {
     let model: AppModel
 
     @State private var isHovering = false
+    @State private var isEditing = false
 
     private var isDue: Bool { !reminder.isDone && reminder.fireAt <= model.now }
     private var isRepeating: Bool { reminder.repeatRule != .none }
 
     var body: some View {
+        Group {
+            if isEditing {
+                ReminderEditor(reminder: reminder, model: model) { isEditing = false }
+            } else {
+                row
+                    .contextMenu { menu }
+            }
+        }
+        .padding(.horizontal, Theme.rowInset)
+        .padding(.vertical, 7)
+        .background(isHovering ? Theme.field.opacity(0.5) : Color.clear)
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+    }
+
+    private var row: some View {
         HStack(alignment: .top, spacing: 10) {
             CheckMark(isOn: reminder.isDone, tint: isDue ? Theme.seal : Theme.gold) {
                 model.toggleReminder(reminder.id)
@@ -159,8 +167,13 @@ struct ReminderRow: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { isEditing = true }
+            .help("双击编辑")
             if isHovering {
                 HStack(spacing: 0) {
+                    IconButton(systemName: "pencil", help: "编辑提醒", size: 11) { isEditing = true }
+                        .accessibilityLabel("编辑提醒")
                     if isDue {
                         IconButton(systemName: "clock.arrow.circlepath", help: "10 分钟后再提醒", size: 11) {
                             model.snoozeReminder(reminder.id, by: 10 * 60)
@@ -171,22 +184,20 @@ struct ReminderRow: View {
                 .padding(.top, -3)
             }
         }
-        .padding(.horizontal, Theme.rowInset)
-        .padding(.vertical, 7)
-        .background(isHovering ? Theme.field.opacity(0.5) : Color.clear)
-        .contentShape(Rectangle())
-        .onHover { isHovering = $0 }
-        .contextMenu {
-            Button("10 分钟后再提醒") { model.snoozeReminder(reminder.id, by: 10 * 60) }
-            Button("1 小时后再提醒") { model.snoozeReminder(reminder.id, by: 3600) }
-            if isRepeating {
-                Button("跳过这一次") { model.toggleReminder(reminder.id) }
-            } else {
-                Button("明天这个时候再提醒") { model.snoozeReminder(reminder.id, by: 24 * 3600) }
-            }
-            Divider()
-            Button(isRepeating ? "删除（不再重复）" : "删除", role: .destructive) { model.deleteReminder(reminder.id) }
+    }
+
+    @ViewBuilder private var menu: some View {
+        Button("编辑") { isEditing = true }
+        Divider()
+        Button("10 分钟后再提醒") { model.snoozeReminder(reminder.id, by: 10 * 60) }
+        Button("1 小时后再提醒") { model.snoozeReminder(reminder.id, by: 3600) }
+        if isRepeating {
+            Button("跳过这一次") { model.toggleReminder(reminder.id) }
+        } else {
+            Button("明天这个时候再提醒") { model.snoozeReminder(reminder.id, by: 24 * 3600) }
         }
+        Divider()
+        Button(isRepeating ? "删除（不再重复）" : "删除", role: .destructive) { model.deleteReminder(reminder.id) }
     }
 
     private var timeText: String {
