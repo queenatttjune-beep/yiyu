@@ -28,7 +28,13 @@ final class FloatingPanel: NSPanel {
         appearance = NSAppearance(named: .darkAqua)
     }
 
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool {
+        #if DEBUG
+        // Read-only tours must not take input, even if AppKit promotes a window or it is clicked.
+        if DebugTour.requestedMode == .gallery || DebugTour.requestedMode == .garden { return false }
+        #endif
+        return true
+    }
     override var canBecomeMain: Bool { false }
 
     override func cancelOperation(_ sender: Any?) {

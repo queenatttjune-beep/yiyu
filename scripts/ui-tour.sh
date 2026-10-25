@@ -27,7 +27,7 @@ OUT="build/tour"
 if [ "$MODE" = "garden" ]; then OUT="build/garden-tour"; fi
 BUNDLE="$OUT/一隅-tour.app"
 LOG="$OUT/tour.log"
-TIMEOUT_SECONDS=120
+TIMEOUT_SECONDS=180
 
 rm -rf "$OUT"
 mkdir -p "$OUT/data" "$BUNDLE/Contents/MacOS"
@@ -90,12 +90,31 @@ while [ $SECONDS -lt $deadline ]; do
   grep -q '^TOUR DONE' "$LOG" && break
 done
 
+# Two shots of heavy rain (no mist drifting) a moment apart must differ, unless Reduce Motion stills it.
+rain_check=""
+shopt -s nullglob
+rain_before=("$OUT"/*-sky-rain.png)
+rain_after=("$OUT"/*-sky-rain-later.png)
+shopt -u nullglob
+before="${rain_before[0]:-}"
+after="${rain_after[0]:-}"
+if [ -n "$before$after" ] && ! grep -q '^TOUR INFO reduce motion' "$LOG"; then
+  if [ ! -s "$before" ] || [ ! -s "$after" ]; then
+    rain_check="SKIP the rain falls: a screenshot is missing"
+  elif cmp -s "$before" "$after"; then
+    rain_check="FAIL the rain falls"
+  else
+    rain_check="PASS the rain falls"
+  fi
+fi
+
 grep -E '^TOUR (PASS|FAIL)' "$LOG" | sed 's/^TOUR //'
+[ -n "$rain_check" ] && echo "$rain_check"
 if ! grep -q '^TOUR DONE' "$LOG"; then
   echo "Tour did not finish within ${TIMEOUT_SECONDS}s; see $LOG"
   exit 1
 fi
-if grep -q '^TOUR FAIL' "$LOG"; then
+if grep -q '^TOUR FAIL' "$LOG" || [ "${rain_check#FAIL}" != "$rain_check" ]; then
   exit 1
 fi
 echo "All checks passed. Screenshots in $OUT/"

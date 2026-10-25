@@ -3,8 +3,8 @@
 public enum WeatherSymbol {
     private static let fallback = "thermometer.medium"
 
-    public static func name(for code: String) -> String {
-        guard let number = Int(code) else { return fallback }
+    public static func name(for code: String, atNight: Bool = false) -> String {
+        guard let number = Int(atNight ? WeatherCondition.nightCode(for: code) : code) else { return fallback }
         switch number {
         case 100: return "sun.max"
         case 150: return "moon.stars"

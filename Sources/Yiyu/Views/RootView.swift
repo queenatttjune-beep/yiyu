@@ -13,6 +13,7 @@ struct RootView: View {
             } else {
                 ExpandedPanel(model: model, ui: ui, actions: actions)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .background(PanelSky())
                     .background(Theme.paper)
                     .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
                     .overlay(

@@ -62,7 +62,7 @@ struct QWeatherResponseTests {
         {"metadata": {"tag": "x", "attributions": []},
          "days": [{
           "forecastStartTime": "2024-08-10T16:00Z", "forecastEndTime": "2024-08-11T16:00Z",
-          "astro": {"sunrise": "2024-08-10T21:30Z", "moonPhase": "waning-gibbous"},
+          "astro": {"sunrise": "2024-08-10T21:30Z", "sunset": "2024-08-11T10:45Z", "moonPhase": "waning-gibbous"},
           "temperatureMax": {"value": 29.94, "unit": "°C"}, "temperatureMin": {"value": 20.93, "unit": "°C"},
           "temperatureAvg": {"value": 25.57, "unit": "°C"}, "uvIndexMax": 6,
           "daytime": {"forecastStartTime": "2024-08-10T23:00Z", "forecastEndTime": "2024-08-11T11:00Z",
@@ -74,8 +74,24 @@ struct QWeatherResponseTests {
 
         #expect(days == [DailyWeather(
             start: utc(2024, 8, 10, 16), end: utc(2024, 8, 11, 16), temperatureMax: 29.94, temperatureMin: 20.93,
-            uvIndexMax: 6, daytime: WeatherCondition(code: "305", text: "小雨"), precipitationProbability: 0.64
+            uvIndexMax: 6, daytime: WeatherCondition(code: "305", text: "小雨"), precipitationProbability: 0.64,
+            sunrise: utc(2024, 8, 10, 21, 30), sunset: utc(2024, 8, 11, 10, 45)
         )])
+    }
+
+    /// Near the poles a day can have no sunrise or sunset; a missing or unreadable time is just unknown.
+    @Test func sunTimesAreOptional() throws {
+        let days = try QWeatherResponse.days(from: data(#"""
+        {"days": [
+          {"forecastStartTime": "2024-08-10T16:00Z", "forecastEndTime": "2024-08-11T16:00Z",
+           "astro": {"sunrise": "later"},
+           "temperatureMax": {"value": 29, "unit": "°C"}, "temperatureMin": {"value": 20, "unit": "°C"}},
+          {"forecastStartTime": "2024-08-11T16:00Z", "forecastEndTime": "2024-08-12T16:00Z",
+           "temperatureMax": {"value": 29, "unit": "°C"}, "temperatureMin": {"value": 20, "unit": "°C"}}
+        ]}
+        """#))
+        #expect(days.count == 2)
+        #expect(days.allSatisfy { $0.sunrise == nil && $0.sunset == nil })
     }
 
     @Test func readsCityLookups() throws {

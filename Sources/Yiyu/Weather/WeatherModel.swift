@@ -38,6 +38,10 @@ final class WeatherModel {
     @ObservationIgnored private var wakeObserver: NSObjectProtocol?
     /// Called with the advice when the morning notification is due.
     @ObservationIgnored var onBriefing: ((OutfitAdvice) -> Void)?
+    #if DEBUG
+    /// Lets the UI tour show every kind of weather.
+    var sceneOverride: WeatherScene?
+    #endif
 
     init(state: WeatherState, store: WeatherStore?, calendar: Calendar = .autoupdatingCurrent,
          bundleID: String = Bundle.main.bundleIdentifier ?? "yiyu") {
@@ -58,7 +62,11 @@ final class WeatherModel {
     var isConfigured: Bool { QWeatherAPI(host: settings.apiHost) != nil && hasKey && city != nil }
 
     var garden: GardenScene {
-        GardenScene.resolve(at: now, city: city, snapshot: snapshot, calendar: baseCalendar)
+        let garden = GardenScene.resolve(at: now, city: city, snapshot: snapshot, calendar: baseCalendar)
+        guard isConfigured, settings.showsScene else {
+            return GardenScene(flower: garden.flower, isNight: garden.isNight)
+        }
+        return garden
     }
 
     var advice: OutfitAdvice? {
@@ -69,6 +77,25 @@ final class WeatherModel {
     var visibleAdvice: OutfitAdvice? {
         guard let advice, !state.isHidden(advice) else { return nil }
         return advice
+    }
+
+    /// What the panel, the badge and the menu bar icon paint for the weather now.
+    var scene: WeatherScene {
+        #if DEBUG
+        if let sceneOverride { return sceneOverride }
+        #endif
+        guard isConfigured, settings.showsScene, snapshot?.cityID == city?.id else { return .calm }
+        return WeatherScene.now(in: snapshot, at: now, atNight: garden.isNight)
+    }
+
+    /// Whether the sun is down in the city now, so clear skies get the moon rather than the sun.
+    var isNight: Bool { garden.isNight }
+
+    /// "杭州 小雨 19°", for the hover text of the badge and the menu bar icon; `nil` once the
+    /// forecast is too old to say what it is like outside now.
+    var briefLine: String? {
+        guard isConfigured, let snapshot, let city, !snapshot.isStale(now: now) else { return nil }
+        return "\(city.name) \(snapshot.current.condition.text) \(Int(snapshot.current.temperature.rounded()))°"
     }
 
     private var cityCalendar: Calendar { city?.calendar(basedOn: baseCalendar) ?? baseCalendar }
@@ -171,7 +198,7 @@ final class WeatherModel {
 
     /// Saves the settings (a non-blank `newKey` replaces the stored one) and fetches right away.
     /// Saving also clears an earlier error, so it doubles as "try again" after topping up.
-    func save(host: String, newKey: String, city: WeatherCity?, briefing: BriefingSchedule) throws {
+    func save(host: String, newKey: String, city: WeatherCity?, briefing: BriefingSchedule, showsScene: Bool) throws {
         let trimmedKey = newKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedKey.isEmpty {
             try KeychainStore.save(trimmedKey, service: keychainService, account: Self.keyAccount, label: Self.keyLabel)
@@ -179,7 +206,9 @@ final class WeatherModel {
             hasKey = true
         }
         let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
-        update(state.with(settings: WeatherSettings(apiHost: trimmedHost, city: city, briefing: briefing)))
+        update(state.with(settings: WeatherSettings(
+            apiHost: trimmedHost, city: city, briefing: briefing, showsScene: showsScene
+        )))
         settingsGeneration += 1
         policy = .initial
         problem = nil

@@ -11,9 +11,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let isHotKeyAvailable: Bool
     private let weather: WeatherModel
     private var displayedFlower: GardenFlower?
+    private var shownMotif: WeatherScene.Motif?
 
     #if DEBUG
     var debugFlower: GardenFlower? { displayedFlower }
+    var debugMotif: WeatherScene.Motif? { shownMotif }
     #endif
 
     init(panel: PanelController, dataFolder: URL, isHotKeyAvailable: Bool, weather: WeatherModel) {
@@ -113,17 +115,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    /// Re-arm after clock or city changes, but render only when the seasonal flower changes.
+    /// Observe both the seasonal flower and weather, keeping the foreground flower in every motif.
     private func observeGarden() {
-        withObservationTracking {
-            let flower = weather.garden.flower
-            if flower != displayedFlower {
-                displayedFlower = flower
-                item.button?.image = MoonGateMark.menuBarImage(flower: flower)
-                item.button?.toolTip = "一隅 · \(flower.name)"
-            }
+        let (flower, motif, line) = withObservationTracking {
+            (weather.garden.flower, weather.scene.motif, weather.briefLine)
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in self?.observeGarden() }
         }
+        if flower != displayedFlower || motif != shownMotif {
+            displayedFlower = flower
+            shownMotif = motif
+            item.button?.image = StatusBarIcon.image(for: motif, flower: flower)
+        }
+        item.button?.toolTip = "一隅 · \(flower.name)" + (line.map { "\n\($0)" } ?? "")
     }
 }

@@ -22,7 +22,7 @@ struct HeaderWeather: View {
         if weather.isConfigured, let snapshot = weather.snapshot {
             VStack(alignment: .trailing, spacing: 2) {
                 HStack(spacing: 5) {
-                    Image(systemName: WeatherSymbol.name(for: snapshot.current.condition.code))
+                    Image(systemName: WeatherSymbol.name(for: snapshot.current.condition.code, atNight: weather.isNight))
                         .font(.system(size: 15))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(Theme.gold)

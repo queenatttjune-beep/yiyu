@@ -56,7 +56,7 @@ public enum GardenWeather: String, CaseIterable, Sendable {
         case 404...406, 456: self = .sleet
         case 300...318, 350, 351, 399: self = .rain
         case 400...403, 407...410, 457, 499: self = .snow
-        case 500...502, 509...515: self = .mist
+        case 500...504, 507...515: self = .mist
         default: self = .quiet
         }
     }
@@ -86,15 +86,17 @@ public struct GardenScene: Equatable, Sendable {
         if let city, city.latitude < 0 { month = (month + 5) % 12 + 1 }
         let flower = GardenFlower.forMonth(month)
         let hour = local.component(.hour, from: date)
-        let isNight = hour < 6 || hour >= 19
+        let matchingSnapshot = snapshot.flatMap {
+            $0.cityID == city?.id && $0.fetchedAt <= date ? $0 : nil
+        }
+        let isNight = matchingSnapshot?.isNight(at: date) ?? (hour < 6 || hour >= 19)
 
-        guard let city, let snapshot, snapshot.cityID == city.id,
-              snapshot.fetchedAt <= date, !snapshot.isStale(now: date) else {
+        guard let conditions = WeatherScene.conditions(in: matchingSnapshot, at: date) else {
             return Self(flower: flower, isNight: isNight)
         }
         return Self(
-            flower: flower, weather: GardenWeather(code: snapshot.current.condition.code),
-            isNight: isNight, isWindy: (snapshot.current.windScale ?? 0) >= 4
+            flower: flower, weather: GardenWeather(code: conditions.condition.code),
+            isNight: isNight, isWindy: (conditions.windScale ?? 0) >= 4
         )
     }
 

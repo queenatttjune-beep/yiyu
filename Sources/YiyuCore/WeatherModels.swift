@@ -56,6 +56,17 @@ public struct WeatherCondition: Codable, Equatable, Sendable {
     }
 
     var number: Int? { Int(code) }
+
+    /// The night version of a daytime code ("100" 晴 → "150"), from 和风天气's icon set. Its v1
+    /// weather API only ever sends the daytime codes, even at midnight.
+    public static func nightCode(for code: String) -> String {
+        switch code {
+        case "100", "101", "102", "103", "300", "301", "406", "407":
+            String((Int(code) ?? 0) + 50)
+        default:
+            code
+        }
+    }
 }
 
 public enum PrecipitationType: String, Codable, Sendable {
@@ -123,10 +134,13 @@ public struct DailyWeather: Codable, Equatable, Sendable {
     public let daytime: WeatherCondition?
     /// 0...1, for the daytime.
     public let precipitationProbability: Double?
+    /// `nil` when the sun does not rise or set that day, or for forecasts saved before these were kept.
+    public let sunrise: Date?
+    public let sunset: Date?
 
     public init(
         start: Date, end: Date, temperatureMax: Double, temperatureMin: Double, uvIndexMax: Double?,
-        daytime: WeatherCondition?, precipitationProbability: Double?
+        daytime: WeatherCondition?, precipitationProbability: Double?, sunrise: Date? = nil, sunset: Date? = nil
     ) {
         self.start = start
         self.end = end
@@ -135,6 +149,8 @@ public struct DailyWeather: Codable, Equatable, Sendable {
         self.uvIndexMax = uvIndexMax
         self.daytime = daytime
         self.precipitationProbability = precipitationProbability
+        self.sunrise = sunrise
+        self.sunset = sunset
     }
 }
 
@@ -159,6 +175,12 @@ public struct WeatherSnapshot: Codable, Equatable, Sendable {
 
     public func day(containing date: Date) -> DailyWeather? {
         days.first { $0.start <= date && date < $0.end }
+    }
+
+    /// Whether the sun is down at `date`; `nil` when the forecast does not say when it rises and sets.
+    public func isNight(at date: Date) -> Bool? {
+        guard let today = day(containing: date), let sunrise = today.sunrise, let sunset = today.sunset else { return nil }
+        return date < sunrise || date >= sunset
     }
 
     public func isStale(now: Date) -> Bool {

@@ -50,7 +50,8 @@ struct SeasonalGardenTests {
         let stale = scene(code: "305", wind: 6, fetchedAt: Fixtures.now.addingTimeInterval(-6 * 3600))
         #expect(stale.weather == .quiet && !stale.isWindy)
         #expect(stale.flower == .chrysanthemum)
-        #expect(scene(fetchedAt: Fixtures.now.addingTimeInterval(-6 * 3600 + 1)).weather == .clear)
+        #expect(scene(fetchedAt: Fixtures.now.addingTimeInterval(-3600 + 1)).weather == .clear)
+        #expect(scene(fetchedAt: Fixtures.now.addingTimeInterval(-3600)).weather == .quiet)
     }
 
     @Test func missingWrongCityAndFutureWeatherFallBackToSeasonOnly() {
@@ -82,5 +83,25 @@ struct SeasonalGardenTests {
         lunar.timeZone = Fixtures.calendar.timeZone
         let garden = GardenScene.resolve(at: Fixtures.date(2026, 3, 1, 12), city: nil, snapshot: nil, calendar: lunar)
         #expect(garden.flower == .magnolia)
+    }
+
+    @Test func gardenAndSkyUseTheSameHourlyWeatherAndSunset() {
+        let now = Fixtures.date(2026, 10, 25, 18, 15)
+        let snapshot = WeatherSnapshot(
+            cityID: WeatherSamples.hangzhou.id, fetchedAt: now.addingTimeInterval(-7200),
+            current: CurrentWeather(temperature: 20, feelsLike: 20, humidity: nil, windScale: 1,
+                                    condition: WeatherCondition(code: "100", text: "晴")),
+            hours: [WeatherSamples.hour(Fixtures.date(2026, 10, 25, 18), feelsLike: 17, code: "305", wind: 5)],
+            days: [WeatherSamples.day(Fixtures.today, min: 15, max: 22, sunrise: 6.1, sunset: 17.4)]
+        )
+        let garden = GardenScene.resolve(at: now, city: WeatherSamples.hangzhou,
+                                         snapshot: snapshot, calendar: Fixtures.calendar)
+        #expect(garden.flower == .chrysanthemum)
+        #expect(garden.weather == .rain && garden.isWindy && garden.isNight)
+        #expect(WeatherScene.now(in: snapshot, at: now) == WeatherScene(rain: .faint, mist: .faint))
+        let stale = now.addingTimeInterval(4 * 3600)
+        #expect(GardenScene.resolve(at: stale, city: WeatherSamples.hangzhou,
+                                     snapshot: snapshot, calendar: Fixtures.calendar).weather == .quiet)
+        #expect(WeatherScene.now(in: snapshot, at: stale) == .calm)
     }
 }

@@ -16,17 +16,20 @@ struct CollapsedBadge: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var badge: PanelBadge {
-        PanelBadge(todaySummary: model.todaySummary, dueReminders: model.dueReminders.count)
+        PanelBadge(todaySummary: model.todaySummary, dueReminders: model.dueReminders.count, weather: weather.briefLine)
     }
 
     var body: some View {
         let garden = weather.garden
+        let atmosphere = weather.scene
         let hint = "\(garden.description)\n\(badge.hint)"
         ZStack(alignment: .topTrailing) {
             Circle()
                 .fill(Theme.paper)
                 .overlay(Circle().strokeBorder(Theme.goldFaint, lineWidth: 0.8))
-                .overlay(MoonGateMark(scene: garden, breeze: reduceMotion ? 0 : breeze).padding(2))
+                .overlay(GateSky(scene: atmosphere).padding(2))
+                .overlay(MoonGateMark(scene: garden, breeze: reduceMotion ? 0 : breeze,
+                                      drawsAtmosphere: atmosphere.isCalm).padding(2))
             if badge.needsAttention {
                 Circle()
                     .fill(Theme.seal)

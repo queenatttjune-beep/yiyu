@@ -61,9 +61,18 @@ struct GardenGallery: View {
     }
 
     private func badge(_ scene: GardenScene) -> some View {
-        Circle().fill(Theme.paper)
+        let atmosphere: WeatherScene = switch scene.weather {
+        case .quiet, .cloudy: .calm
+        case .clear: .init(sky: scene.isNight ? .moon(.strong) : .sun(.strong))
+        case .rain: .init(rain: .faint, mist: .faint)
+        case .snow: .init(snow: .medium)
+        case .sleet: .init(rain: .faint, snow: .faint)
+        case .mist: .init(mist: .medium)
+        }
+        return Circle().fill(Theme.paper)
             .overlay(Circle().strokeBorder(Theme.goldFaint, lineWidth: 0.8))
-            .overlay(MoonGateMark(scene: scene).padding(2))
+            .overlay(GateSky(scene: atmosphere).padding(2))
+            .overlay(MoonGateMark(scene: scene, drawsAtmosphere: atmosphere.isCalm).padding(2))
             .frame(width: 52, height: 52)
     }
 }

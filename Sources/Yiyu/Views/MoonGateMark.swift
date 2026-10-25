@@ -6,6 +6,8 @@ import YiyuCore
 struct MoonGateMark: View, @MainActor Animatable {
     let scene: GardenScene
     var breeze: Double = 0
+    /// Animated weather is supplied by GateSky behind the rim and foreground branch.
+    var drawsAtmosphere = true
 
     var animatableData: Double {
         get { breeze }
@@ -17,17 +19,22 @@ struct MoonGateMark: View, @MainActor Animatable {
         let inks = GardenDrawing.Inks(palette: Theme.skin.palette)
         Canvas { context, size in
             context.withCGContext { cg in
-                GardenDrawing.draw(in: cg, size: size, scene: scene, inks: inks, breeze: breeze)
+                GardenDrawing.draw(in: cg, size: size, scene: scene, inks: inks, breeze: breeze,
+                                   drawsAtmosphere: drawsAtmosphere)
             }
         }
         .accessibilityHidden(true)
     }
 
     static func menuBarImage(flower: GardenFlower) -> NSImage {
+        menuBarImage(scene: GardenScene(flower: flower))
+    }
+
+    static func menuBarImage(scene: GardenScene) -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
             guard let cg = NSGraphicsContext.current?.cgContext else { return false }
             GardenDrawing.draw(in: cg, size: CGSize(width: 18, height: 18),
-                               scene: GardenScene(flower: flower), inks: .template, compact: true)
+                               scene: scene, inks: .template, compact: true)
             return true
         }
         image.isTemplate = true
@@ -70,7 +77,7 @@ private struct GardenDrawing {
     let compact: Bool
 
     static func draw(in cg: CGContext, size: CGSize, scene: GardenScene, inks: Inks,
-                     breeze: Double = 0, compact: Bool = false) {
+                     breeze: Double = 0, compact: Bool = false, drawsAtmosphere: Bool = true) {
         cg.saveGState()
         defer { cg.restoreGState() }
         let scale = min(size.width, size.height) / 44
@@ -80,7 +87,7 @@ private struct GardenDrawing {
         cg.setLineJoin(.round)
         let drawing = Self(cg: cg, inks: inks, compact: compact)
         let gate = CGRect(x: 6, y: 6, width: 32, height: 32)
-        if !compact {
+        if !compact && drawsAtmosphere {
             cg.setFillColor(inks.accent.copy(alpha: scene.isNight ? 0.07 : 0.11)!)
             cg.fillEllipse(in: gate)
             drawing.sky(scene)
@@ -88,6 +95,7 @@ private struct GardenDrawing {
         cg.setStrokeColor(compact ? inks.accent : inks.accent.copy(alpha: 0.8)!)
         cg.setLineWidth(compact ? 2.7 : 1.1)
         cg.strokeEllipse(in: gate)
+        if compact { drawing.compactWeather(scene) }
 
         cg.saveGState()
         if scene.isWindy && !compact {
@@ -97,7 +105,7 @@ private struct GardenDrawing {
         }
         drawing.plant(scene.flower)
         cg.restoreGState()
-        if !compact { drawing.weather(scene) }
+        if !compact && drawsAtmosphere { drawing.weather(scene) }
     }
 
     private func plant(_ flower: GardenFlower) {
@@ -147,6 +155,32 @@ private struct GardenDrawing {
                 line([(13 + cos(angle) * 3.1, 13 + sin(angle) * 3.1),
                       (13 + cos(angle) * 3.8, 13 + sin(angle) * 3.8)], color: inks.accent, width: 0.7)
             }
+        }
+    }
+
+    /// The reserved upper-left space carries one small weather sign at menu-bar size.
+    private func compactWeather(_ scene: GardenScene) {
+        switch scene.weather {
+        case .rain, .sleet:
+            line([(12, 14), (10, 18)], color: inks.ink, width: 1.8)
+            line([(17, 16), (15, 20)], color: inks.ink, width: 1.8)
+        case .snow:
+            dot(12, 15, 1.6, inks.ink)
+            dot(17, 19, 1.5, inks.ink)
+        case .mist:
+            line([(10, 15), (17, 15)], color: inks.ink, width: 1.8)
+            line([(9, 20), (16, 20)], color: inks.ink, width: 1.8)
+        case .clear:
+            if scene.isNight { sky(scene) }
+            else {
+                dot(13, 13, 2.2, inks.ink)
+                for i in 0..<6 {
+                    let angle = Double(i) * .pi / 3
+                    line([(13 + cos(angle) * 4, 13 + sin(angle) * 4),
+                          (13 + cos(angle) * 5, 13 + sin(angle) * 5)], color: inks.ink, width: 1.4)
+                }
+            }
+        case .quiet, .cloudy: break
         }
     }
 
