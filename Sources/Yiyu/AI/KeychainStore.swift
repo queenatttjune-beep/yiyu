@@ -33,7 +33,8 @@ enum KeychainStore {
     }
 
     /// Saves `value`, replacing what was there; an empty value deletes the item.
-    static func save(_ value: String, service: String, account: String) throws {
+    /// `label` is what Keychain Access shows for a new item.
+    static func save(_ value: String, service: String, account: String, label: String = "一隅 AI 密钥") throws {
         guard !value.isEmpty else {
             try delete(service: service, account: account)
             return
@@ -46,7 +47,7 @@ enum KeychainStore {
 
         var item = query
         item[kSecValueData as String] = data
-        item[kSecAttrLabel as String] = "一隅 AI 密钥"
+        item[kSecAttrLabel as String] = label
         let addStatus = SecItemAdd(item as CFDictionary, nil)
         guard addStatus == errSecSuccess else { throw Failure(status: addStatus) }
     }

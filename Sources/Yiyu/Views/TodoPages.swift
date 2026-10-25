@@ -19,6 +19,7 @@ struct TodayPage: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    OutfitCard()
                     if model.todayTodos.isEmpty {
                         EmptyHint(
                             title: "今天还没有安排。",

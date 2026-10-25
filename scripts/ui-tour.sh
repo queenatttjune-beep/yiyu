@@ -18,7 +18,7 @@ fi
 OUT="build/tour"
 BUNDLE="$OUT/一隅-tour.app"
 LOG="$OUT/tour.log"
-TIMEOUT_SECONDS=90
+TIMEOUT_SECONDS=120
 
 rm -rf "$OUT"
 mkdir -p "$OUT/data" "$BUNDLE/Contents/MacOS"
@@ -29,21 +29,33 @@ cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$(plutil -extract CFBundleIdentifier raw Resources/Info.plist).tour" "$BUNDLE/Contents/Info.plist"
 codesign --force --sign - "$BUNDLE" 2>/dev/null
 
-# A fake AI service on localhost, so the diary-polish steps run without a real key.
-python3 -I scripts/mock-ai-server.py >"$OUT/mock-ai.log" 2>&1 &
-MOCK_PID=$!
-mock_port=""
-for _ in $(seq 1 50); do
-  mock_port="$(sed -n 's/^PORT //p' "$OUT/mock-ai.log" | head -1)"
-  [ -n "$mock_port" ] && break
-  sleep 0.1
-done
-[ -n "$mock_port" ] || { echo "The mock AI server did not start; see $OUT/mock-ai.log"; kill "$MOCK_PID"; exit 1; }
+# Fake AI and 和风天气 services on localhost, so the diary-polish and weather steps run without real keys.
+MOCK_PIDS=()
+trap 'kill ${APP_PID:-} ${MOCK_PIDS[@]+"${MOCK_PIDS[@]}"} 2>/dev/null || true' EXIT
 
-YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" YIYU_TOUR_SHOTS="$PWD/$OUT" YIYU_TOUR_AI_URL="http://127.0.0.1:$mock_port/v1" \
+# start_mock <script> <log>: starts a mock server and sets mock_port to the port it printed.
+start_mock() {
+  python3 -I "$1" >"$2" 2>&1 &
+  MOCK_PIDS+=($!)
+  mock_port=""
+  for _ in $(seq 1 50); do
+    mock_port="$(sed -n 's/^PORT //p' "$2" | head -1)"
+    [ -n "$mock_port" ] && return 0
+    sleep 0.1
+  done
+  echo "The mock server $1 did not start; see $2"
+  exit 1
+}
+
+start_mock scripts/mock-ai-server.py "$OUT/mock-ai.log"
+ai_port="$mock_port"
+start_mock scripts/mock-qweather-server.py "$OUT/mock-qweather.log"
+weather_port="$mock_port"
+
+YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" YIYU_TOUR_SHOTS="$PWD/$OUT" \
+  YIYU_TOUR_AI_URL="http://127.0.0.1:$ai_port/v1" YIYU_TOUR_WEATHER_URL="http://127.0.0.1:$weather_port" \
   "$BUNDLE/Contents/MacOS/Yiyu" >"$LOG" 2>&1 &
 APP_PID=$!
-trap 'kill "$APP_PID" "$MOCK_PID" 2>/dev/null || true' EXIT
 
 window=""
 seen=0

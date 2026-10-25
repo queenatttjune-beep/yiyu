@@ -4,17 +4,20 @@ import UserNotifications
 import YiyuCore
 
 /// Mirrors upcoming reminders into macOS notifications and plays a sound in-app
-/// when notifications are turned off.
+/// when notifications are turned off. Also posts the morning outfit notification.
 @MainActor
 final class ReminderNotifier: NSObject, UNUserNotificationCenterDelegate {
     /// macOS keeps at most 64 pending notifications per app.
     private static let maxScheduled = 60
     /// Repeating reminders are scheduled this far ahead, so they still go off while the app is closed.
     private static let repeatHorizonDays = 7
+    /// Marks the morning outfit notification, so clicking it opens 今天 rather than 提醒.
+    private nonisolated static let briefingKind = "weather-briefing"
 
     private let center: UNUserNotificationCenter?
     private let calendar: Calendar
     var onOpenReminders: (@MainActor () -> Void)?
+    var onOpenToday: (@MainActor () -> Void)?
 
     init(calendar: Calendar) {
         // UNUserNotificationCenter crashes outside an app bundle (e.g. `swift run`).
@@ -70,6 +73,22 @@ final class ReminderNotifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    /// Shows a notification right away. It never waits in the pending queue, so `sync` cannot remove it.
+    func deliverBriefing(title: String, body: String) {
+        guard let center else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.userInfo = ["kind": Self.briefingKind]
+        let identifier = "\(Self.briefingKind)-\(Int(Date().timeIntervalSince1970))"
+        center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil)) { error in
+            if let error {
+                NSLog("Yiyu: posting the outfit notification failed: %@", error.localizedDescription)
+            }
+        }
+    }
+
     private func request(for occurrence: ReminderBook.Occurrence) -> UNNotificationRequest {
         let reminder = occurrence.reminder
         let content = UNMutableNotificationContent()
@@ -96,10 +115,15 @@ final class ReminderNotifier: NSObject, UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        await openReminders()
+        let isBriefing = response.notification.request.content.userInfo["kind"] as? String == Self.briefingKind
+        await open(isBriefing: isBriefing)
     }
 
-    private func openReminders() {
-        onOpenReminders?()
+    private func open(isBriefing: Bool) {
+        if isBriefing {
+            onOpenToday?()
+        } else {
+            onOpenReminders?()
+        }
     }
 }

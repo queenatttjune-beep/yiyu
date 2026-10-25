@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var model: AppModel?
     private var appearance: AppearanceModel?
     private var appearanceWindow: AppearanceWindowController?
+    private var weather: WeatherModel?
+    private var weatherWindow: WeatherWindowController?
     private var panel: PanelController?
     private var statusBar: StatusBarController?
     private var hotKey: HotKey?
@@ -39,7 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let ui = PanelState()
         let polisher = DiaryPolisher(settings: AISettings())
-        let panel = PanelController(model: model, ui: ui, dataFolder: store.directory, polisher: polisher)
+        let weather = WeatherModel.load(in: store.directory, calendar: model.calendar)
+        let panel = PanelController(model: model, ui: ui, dataFolder: store.directory, polisher: polisher, weather: weather)
         panel.applyAppearance(isDark: appearance.selectedSkin.palette.isDark)
         appearance.onSkinChanged = { [weak panel] skin in panel?.applyAppearance(isDark: skin.palette.isDark) }
         let appearanceWindow = AppearanceWindowController(model: appearance)
@@ -47,6 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.onRemindersChanged = { [weak notifier] reminders in notifier?.sync(reminders) }
         model.onRemindersFired = { [weak notifier] fired in notifier?.reminderFiredInApp(fired) }
         notifier.onOpenReminders = { [weak panel] in panel?.expand(focus: false, tab: .reminders) }
+        notifier.onOpenToday = { [weak panel] in panel?.expand(focus: false, tab: .today) }
+        weather.onBriefing = { [weak notifier] advice in
+            notifier?.deliverBriefing(title: advice.headline, body: advice.summary)
+        }
+        let weatherWindow = WeatherWindowController(model: weather)
 
         let hotKey = HotKey(keyCode: kVK_ANSI_T, modifiers: controlKey | optionKey) { [weak panel] in
             panel?.toggleFromHotKey()
@@ -55,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.model = model
         self.appearance = appearance
         self.appearanceWindow = appearanceWindow
+        self.weather = weather
+        self.weatherWindow = weatherWindow
         self.panel = panel
         self.notifier = notifier
         self.hotKey = hotKey
@@ -64,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.pruneEmptyMemos(keeping: nil)
         notifier.start { [weak model] in model?.data.reminders ?? [] }
         startTicking(model)
+        weather.start()
         quitCleanlyOnSIGTERM()
         panel.show()
         if !isUsingCustomDataDirectory {
@@ -71,7 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         #if DEBUG
         DebugTour.runIfRequested(
-            panel: panel, model: model, ui: ui, polisher: polisher, appearanceWindow: appearanceWindow
+            panel: panel, model: model, ui: ui, polisher: polisher, appearanceWindow: appearanceWindow,
+            weatherWindow: weatherWindow
         )
         #endif
     }
@@ -98,6 +110,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Reached through the responder chain from the panel's ⋯ menu and the menu bar icon (`AppearanceCommand`).
     @objc func showAppearanceSettings(_ sender: Any?) {
         appearanceWindow?.show()
+    }
+
+    /// Reached the same way, through `WeatherCommand`.
+    @objc func showWeatherSettings(_ sender: Any?) {
+        weatherWindow?.show()
     }
 
     /// Skins are a preference: if they cannot be read, the panel still opens with the default skin.

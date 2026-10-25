@@ -44,6 +44,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         addItem(to: menu, title: "打开数据文件夹", action: #selector(openDataFolder))
         let appearance = addItem(to: menu, title: "外观与皮肤…", action: #selector(showAppearanceSettings))
         appearance.keyEquivalent = ","
+        addItem(to: menu, title: "天气设置…", action: #selector(showWeatherSettings))
         menu.addItem(.separator())
         let quit = addItem(to: menu, title: "退出一隅", action: #selector(quit))
         quit.keyEquivalent = "q"
@@ -94,6 +95,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func showAppearanceSettings() {
         AppearanceCommand.open()
+    }
+
+    @objc private func showWeatherSettings() {
+        WeatherCommand.open()
     }
 
     @objc private func quit() {

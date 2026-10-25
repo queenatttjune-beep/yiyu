@@ -87,12 +87,14 @@ private struct PanelHeader: View {
                 onDragEnd: actions.panelDidMove
             ))
 
-            HStack(spacing: 2) {
+            HStack(spacing: 6) {
+                HeaderWeather()
                 Menu {
                     Button("隐藏面板", action: actions.hidePanel)
                     Button("放回右上角", action: actions.resetPosition)
                     Button("打开数据文件夹", action: actions.openDataFolder)
                     Button("外观与皮肤…") { AppearanceCommand.open() }
+                    Button("天气设置…") { WeatherCommand.open() }
                     Divider()
                     Button("退出一隅", action: actions.quit)
                 } label: {

@@ -26,6 +26,7 @@ struct DebugTour {
     let ui: PanelState
     let polisher: DiaryPolisher
     let appearanceWindow: AppearanceWindowController
+    let weatherWindow: WeatherWindowController
 
     private var window: NSPanel { panel.debugWindow }
 
@@ -37,10 +38,13 @@ struct DebugTour {
 
     static func runIfRequested(
         panel: PanelController, model: AppModel, ui: PanelState,
-        polisher: DiaryPolisher, appearanceWindow: AppearanceWindowController
+        polisher: DiaryPolisher, appearanceWindow: AppearanceWindowController, weatherWindow: WeatherWindowController
     ) {
         guard let mode = requestedMode else { return }
-        let tour = DebugTour(panel: panel, model: model, ui: ui, polisher: polisher, appearanceWindow: appearanceWindow)
+        let tour = DebugTour(
+            panel: panel, model: model, ui: ui, polisher: polisher,
+            appearanceWindow: appearanceWindow, weatherWindow: weatherWindow
+        )
         Task {
             tour.log("WINDOW \(panel.debugWindow.windowNumber)")
             try? await Task.sleep(for: .seconds(1))
@@ -48,6 +52,7 @@ struct DebugTour {
             case .gallery:
                 await tour.runGallery()
                 await tour.runSkins()
+                await tour.closeOutfitCard()
             case .interactive: await tour.runInteractive()
             }
             tour.log("DONE")
@@ -73,6 +78,7 @@ struct DebugTour {
         ui.tab = .diary
         await step("diary")
         await polishTour()
+        await weatherTour()
 
         model.addReminder("一隅提醒测试", at: Date().addingTimeInterval(1), repeatRule: .none)
         try? await Task.sleep(for: .seconds(2))
@@ -219,6 +225,55 @@ struct DebugTour {
         await settle()
         check("a result stays with the day it was made for", polisher.targetDay == today)
         polisher.close()
+    }
+
+    /// Runs against scripts/mock-qweather-server.py when ui-tour.sh started it.
+    private func weatherTour() async {
+        guard let url = ProcessInfo.processInfo.environment["YIYU_TOUR_WEATHER_URL"] else {
+            log("SKIP weather checks: no mock weather server")
+            return
+        }
+        let weather = weatherWindow.model
+        for _ in 0..<50 where weather.snapshot == nil {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        check("the forecast loads from 和风天气", weather.snapshot != nil && weather.problem == nil)
+        check("the header shows the temperature now", weather.snapshot?.current.temperature == 19.6)
+        check("the outfit card gives clothing advice",
+              weather.visibleAdvice?.summary == "长袖衬衫或 T 恤；早晚只有 17°，带件薄外套；下午降水概率 55%，记得带伞。")
+        ui.tab = .today
+        await step("weather-today")
+
+        let found = try? await weather.searchCities("杭州", host: url, newKey: "")
+        check("city search finds 杭州", found?.first?.name == "杭州")
+        do {
+            _ = try await weather.searchCities("杭州", host: url, newKey: "wrong-key")
+            check("a wrong API KEY is reported", false)
+        } catch {
+            check("a wrong API KEY is reported", WeatherFailure(error) == .service(.unauthorized))
+        }
+
+        weatherWindow.show(activate: false)
+        await settle()
+        if let settingsWindow = weatherWindow.debugWindow {
+            await step("weather-settings", window: settingsWindow)
+            log("INFO app active \(NSApp.isActive), settings key \(settingsWindow.isKeyWindow), panel key \(window.isKeyWindow), key window \(NSApp.keyWindow?.title ?? "none")")
+            check("opening the weather settings left the keyboard alone",
+                  !settingsWindow.isKeyWindow && !window.isKeyWindow)
+        } else {
+            check("the weather settings window opens", false)
+        }
+        weatherWindow.close()
+    }
+
+    /// Last, so the skin screenshots still show the card.
+    private func closeOutfitCard() async {
+        guard ProcessInfo.processInfo.environment["YIYU_TOUR_WEATHER_URL"] != nil else { return }
+        let weather = weatherWindow.model
+        ui.tab = .today
+        weather.hideAdvice()
+        await settle()
+        check("closing the outfit card hides it for the day", weather.advice != nil && weather.visibleAdvice == nil)
     }
 
     /// A believable week of data around `now`, used when the tour starts from an empty folder.
