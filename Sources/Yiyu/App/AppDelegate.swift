@@ -34,7 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let ui = PanelState()
-        let panel = PanelController(model: model, ui: ui, dataFolder: store.directory)
+        let polisher = DiaryPolisher(settings: AISettings())
+        let panel = PanelController(model: model, ui: ui, dataFolder: store.directory, polisher: polisher)
         let notifier = ReminderNotifier(calendar: model.calendar)
         model.onRemindersChanged = { [weak notifier] reminders in notifier?.sync(reminders) }
         model.onRemindersFired = { [weak notifier] fired in notifier?.reminderFiredInApp(fired) }
@@ -60,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             LoginItem.enableOnFirstLaunch()
         }
         #if DEBUG
-        DebugTour.runIfRequested(panel: panel, model: model, ui: ui)
+        DebugTour.runIfRequested(panel: panel, model: model, ui: ui, polisher: polisher)
         #endif
     }
 

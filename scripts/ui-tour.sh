@@ -29,9 +29,21 @@ cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$(plutil -extract CFBundleIdentifier raw Resources/Info.plist).tour" "$BUNDLE/Contents/Info.plist"
 codesign --force --sign - "$BUNDLE" 2>/dev/null
 
-YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" "$BUNDLE/Contents/MacOS/Yiyu" >"$LOG" 2>&1 &
+# A fake AI service on localhost, so the diary-polish steps run without a real key.
+python3 -I scripts/mock-ai-server.py >"$OUT/mock-ai.log" 2>&1 &
+MOCK_PID=$!
+mock_port=""
+for _ in $(seq 1 50); do
+  mock_port="$(sed -n 's/^PORT //p' "$OUT/mock-ai.log" | head -1)"
+  [ -n "$mock_port" ] && break
+  sleep 0.1
+done
+[ -n "$mock_port" ] || { echo "The mock AI server did not start; see $OUT/mock-ai.log"; kill "$MOCK_PID"; exit 1; }
+
+YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" YIYU_TOUR_AI_URL="http://127.0.0.1:$mock_port/v1" \
+  "$BUNDLE/Contents/MacOS/Yiyu" >"$LOG" 2>&1 &
 APP_PID=$!
-trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+trap 'kill "$APP_PID" "$MOCK_PID" 2>/dev/null || true' EXIT
 
 window=""
 seen=0

@@ -15,7 +15,8 @@ struct DataStoreTests {
             todos: [Todo(title: "交作业", plannedDay: Fixtures.today, createdAt: now)],
             reminders: [Reminder(title: "吃药", fireAt: now, repeatRule: .daily, isDone: false, createdAt: now)],
             memos: [Memo(text: "WiFi", isPinned: true, createdAt: now, updatedAt: now)],
-            diary: [DiaryEntry(day: Fixtures.today, text: "晴", updatedAt: now)]
+            diary: [DiaryEntry(day: Fixtures.today, text: "晴", updatedAt: now)],
+            customStyles: [WritingStyle.custom(name: "第三人称", instruction: "改成第三人称", id: "c1")]
         )
     }
 

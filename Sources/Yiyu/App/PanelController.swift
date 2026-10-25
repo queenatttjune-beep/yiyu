@@ -16,7 +16,7 @@ final class PanelController {
     private let ui: PanelState
     private var screenObserver: NSObjectProtocol?
 
-    init(model: AppModel, ui: PanelState, dataFolder: URL) {
+    init(model: AppModel, ui: PanelState, dataFolder: URL, polisher: DiaryPolisher) {
         self.panel = FloatingPanel()
         self.ui = ui
 
@@ -27,7 +27,7 @@ final class PanelController {
             openDataFolder: { NSWorkspace.shared.open(dataFolder) },
             quit: { NSApp.terminate(nil) }
         )
-        let hostingView = FirstMouseHostingView(rootView: RootView(model: model, ui: ui, actions: actions))
+        let hostingView = FirstMouseHostingView(rootView: RootView(model: model, ui: ui, actions: actions).environment(polisher))
         hostingView.sizingOptions = []
         panel.contentView = hostingView
         panel.onCancel = { [weak self] in self?.collapse() }
