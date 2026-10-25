@@ -15,7 +15,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         self.isHotKeyAvailable = isHotKeyAvailable
         super.init()
 
-        item.button?.image = Self.cornerIcon()
+        item.button?.image = Self.moonGateIcon()
         item.button?.toolTip = "一隅"
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -94,14 +94,46 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
-    /// A rounded square with its top-right corner filled in: "一隅", a corner.
-    private static func cornerIcon() -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+    /// A moon gate standing on the ground with a plum blossom inside, like the collapsed badge.
+    /// Laid out top-down on an 18 × 18 template.
+    private static func moonGateIcon() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
+            let ground: CGFloat = 15.2
+            let lineWidth: CGFloat = 1.35
             NSColor.black.set()
-            let outline = NSBezierPath(roundedRect: NSRect(x: 2.5, y: 2.5, width: 13, height: 13), xRadius: 3.2, yRadius: 3.2)
-            outline.lineWidth = 1.4
-            outline.stroke()
-            NSBezierPath(roundedRect: NSRect(x: 9.2, y: 9.2, width: 4.4, height: 4.4), xRadius: 1.2, yRadius: 1.2).fill()
+
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(rect: NSRect(x: 0, y: 0, width: 18, height: ground)).addClip()
+            let gate = NSBezierPath(ovalIn: NSRect(x: 9 - 6.8, y: 10.02 - 6.8, width: 13.6, height: 13.6))
+            gate.lineWidth = lineWidth
+            gate.stroke()
+            NSGraphicsContext.restoreGraphicsState()
+
+            let groundLine = NSBezierPath()
+            groundLine.move(to: NSPoint(x: 1.2, y: ground))
+            groundLine.line(to: NSPoint(x: 16.8, y: ground))
+            groundLine.lineWidth = lineWidth
+            groundLine.lineCapStyle = .round
+            groundLine.stroke()
+
+            let stem = NSBezierPath()
+            stem.move(to: NSPoint(x: 9, y: 12.4))
+            stem.curve(to: NSPoint(x: 7.6, y: ground), controlPoint1: NSPoint(x: 8.87, y: 13.47), controlPoint2: NSPoint(x: 8.4, y: 14.4))
+            stem.lineWidth = 1.1
+            stem.lineCapStyle = .round
+            stem.stroke()
+
+            let blossom = NSPoint(x: 9, y: 9.3)
+            let petalRadius: CGFloat = 1.63
+            for index in 0..<5 {
+                let angle = (-90 + CGFloat(index) * 72) * .pi / 180
+                let petal = NSPoint(x: blossom.x + cos(angle) * 2.22, y: blossom.y + sin(angle) * 2.22)
+                NSBezierPath(ovalIn: NSRect(
+                    x: petal.x - petalRadius, y: petal.y - petalRadius, width: petalRadius * 2, height: petalRadius * 2
+                )).fill()
+            }
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(ovalIn: NSRect(x: blossom.x - 0.95, y: blossom.y - 0.95, width: 1.9, height: 1.9)).fill()
             return true
         }
         image.isTemplate = true
