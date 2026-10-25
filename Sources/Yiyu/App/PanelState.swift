@@ -30,7 +30,8 @@ enum PanelTab: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class PanelState {
-    var isCollapsed = false
+    /// The panel starts tucked away as a small badge; a click or ⌃⌥T opens it.
+    var isCollapsed = true
     var tab: PanelTab = .today
     /// Bumped to ask the current page to focus its input field.
     var focusRequest = 0
@@ -45,8 +46,12 @@ struct PanelActions {
     var hidePanel: @MainActor () -> Void
     var openDataFolder: @MainActor () -> Void
     var quit: @MainActor () -> Void
+    /// A drag of the panel ended; remember where it is now.
+    var panelDidMove: @MainActor () -> Void
+    var resetPosition: @MainActor () -> Void
 
     static let preview = PanelActions(
-        toggleCollapsed: {}, expand: {}, hidePanel: {}, openDataFolder: {}, quit: {}
+        toggleCollapsed: {}, expand: {}, hidePanel: {}, openDataFolder: {}, quit: {},
+        panelDidMove: {}, resetPosition: {}
     )
 }

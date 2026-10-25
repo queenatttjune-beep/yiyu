@@ -17,6 +17,9 @@ struct DebugTour {
 
     private static let settle: Duration = .milliseconds(450)
     private static let shotPause: Duration = .milliseconds(1800)
+    /// Longest wait for `ui-tour.sh` to write a step's screenshot.
+    private static let shotTimeout: Duration = .seconds(8)
+    private static var stepsTaken = 0
 
     let panel: PanelController
     let model: AppModel
@@ -48,6 +51,13 @@ struct DebugTour {
     }
 
     private func runGallery() async {
+        panel.keepsKeyboardAway = true
+        check("the panel starts as a small badge",
+              ui.isCollapsed && window.frame.width <= PanelBadge.size && window.frame.height <= PanelBadge.size)
+        await step("badge")
+        panel.expand(focus: false)
+        await settle()
+
         for tab in [PanelTab.today, .backlog, .reminders, .memos] {
             ui.tab = tab
             await step(tab.rawValue)
@@ -68,13 +78,94 @@ struct DebugTour {
 
         panel.collapse()
         await settle()
-        check("collapsing shrinks the panel to a strip", ui.isCollapsed && window.frame.height < 60)
-        check("the panel never took the keyboard", !window.isKeyWindow)
-        await step("collapsed")
+        check("collapsing shrinks the panel to the badge", ui.isCollapsed && window.frame.width <= PanelBadge.size)
+        check("a due reminder marks the badge",
+              PanelBadge(todaySummary: model.todaySummary, dueReminders: model.dueReminders.count).needsAttention)
+        await step("badge-attention")
+
+        model.acknowledgeFired()
+        for reminder in model.dueReminders {
+            model.toggleReminder(reminder.id)
+        }
+        await settle()
+        await step("badge-calm")
 
         panel.expand(focus: false)
         await settle()
         check("expanding restores the panel", !ui.isCollapsed && window.frame.height > 300)
+
+        await runDragChecks()
+        check("the panel never took the keyboard", !window.isKeyWindow)
+    }
+
+    /// Drives the drag handles through the same steps a mouse drag uses, without making the panel key.
+    private func runDragChecks() async {
+        panel.resetPosition()
+        await settle()
+        let home = window.frame
+        guard let clickedHeader = dragHandles().first else {
+            check("the header has a drag handle", false)
+            return
+        }
+
+        clickedHeader.beginDrag(at: CGPoint(x: 1000, y: 800))
+        clickedHeader.continueDrag(to: CGPoint(x: 1002, y: 801))
+        clickedHeader.endDrag()
+        await settle()
+        check("clicking the header collapses the panel in place",
+              ui.isCollapsed && PanelPlacement.anchor(of: window.frame) == PanelPlacement.anchor(of: home))
+        dragHandles().first?.beginDrag(at: CGPoint(x: 500, y: 500))
+        dragHandles().first?.endDrag()
+        await settle()
+        check("clicking the badge expands it again", !ui.isCollapsed && window.frame == home)
+        guard let header = dragHandles().first else {
+            check("the expanded header has a drag handle", false)
+            return
+        }
+
+        let start = CGPoint(x: home.midX, y: home.maxY - 20)
+        header.beginDrag(at: start)
+        header.continueDrag(to: CGPoint(x: start.x - 200, y: start.y - 60))
+        header.continueDrag(to: CGPoint(x: start.x - 400, y: start.y - 150))
+        header.endDrag()
+        await settle()
+        let moved = window.frame
+        check("dragging the header moves the panel with the pointer",
+              moved.origin == CGPoint(x: home.minX - 400, y: home.minY - 150))
+        check("the new position is saved", PanelAnchorStore().anchor == PanelPlacement.anchor(of: moved))
+        check("the panel never took the keyboard while dragging", !window.isKeyWindow)
+        await step("dragged")
+
+        panel.collapse()
+        await settle()
+        check("collapsing keeps the dragged top-right corner",
+              PanelPlacement.anchor(of: window.frame) == PanelPlacement.anchor(of: moved))
+        if let strip = dragHandles().first {
+            strip.beginDrag(at: CGPoint(x: 500, y: 500))
+            strip.endDrag()
+            await settle()
+            check("clicking the dragged badge expands it", !ui.isCollapsed)
+        } else {
+            check("the badge has a drag handle", false)
+        }
+
+        dragHandles().first?.beginDrag(at: start)
+        dragHandles().first?.continueDrag(to: CGPoint(x: -20000, y: -20000))
+        dragHandles().first?.endDrag()
+        await settle()
+        let screens = NSScreen.screens.map(\.visibleFrame)
+        check("a panel dragged off screen is pulled back on", screens.contains { $0.contains(window.frame) })
+
+        panel.resetPosition()
+        await settle()
+        check("放回右上角 restores the default spot", window.frame == home && PanelAnchorStore().anchor == nil)
+    }
+
+    private func dragHandles() -> [DragHandleView] {
+        func collect(_ view: NSView) -> [DragHandleView] {
+            ((view as? DragHandleView).map { [$0] } ?? []) + view.subviews.flatMap(collect)
+        }
+        return window.contentView.map(collect) ?? []
     }
 
     /// A believable week of data around `now`, used when the tour starts from an empty folder.
@@ -185,6 +276,11 @@ struct DebugTour {
         ui.tab = .diary
         await step("skin-diary")
         ui.tab = .today
+        panel.collapse()
+        await settle()
+        await step("skin-badge")
+        panel.expand(focus: false)
+        await settle()
 
         appearance.select(Skin.default.id)
         appearance.setColor(ThemeColor(rgb: 0x7FB8A4), for: .accent)
@@ -223,10 +319,24 @@ struct DebugTour {
 
     // MARK: - Helpers
 
-    /// Logs `STEP <name>`, plus the window number when the shot is of a window other than the panel.
+    /// Logs `STEP <name>` (plus the window number when the shot is of a window other than the panel)
+    /// and pauses until `ui-tour.sh` has captured it (it sets `YIYU_TOUR_SHOTS` to its screenshot
+    /// folder), so slow captures never show a later state.
     private func step(_ name: String, window shot: NSWindow? = nil) async {
+        Self.stepsTaken += 1
         log("STEP \(name)" + (shot.map { " \($0.windowNumber)" } ?? ""))
-        try? await Task.sleep(for: Self.shotPause)
+        guard let folder = ProcessInfo.processInfo.environment["YIYU_TOUR_SHOTS"] else {
+            try? await Task.sleep(for: Self.shotPause)
+            return
+        }
+        let deadline = ContinuousClock.now + Self.shotTimeout
+        while ContinuousClock.now < deadline {
+            let shots = (try? FileManager.default.contentsOfDirectory(atPath: folder))?
+                .filter { $0.hasSuffix(".png") } ?? []
+            if shots.count >= Self.stepsTaken { return }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        log("SLOW screenshot for \(name)")
     }
 
     private func settle() async {

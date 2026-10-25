@@ -29,7 +29,7 @@ cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$(plutil -extract CFBundleIdentifier raw Resources/Info.plist).tour" "$BUNDLE/Contents/Info.plist"
 codesign --force --sign - "$BUNDLE" 2>/dev/null
 
-YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" "$BUNDLE/Contents/MacOS/Yiyu" >"$LOG" 2>&1 &
+YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" YIYU_TOUR_SHOTS="$PWD/$OUT" "$BUNDLE/Contents/MacOS/Yiyu" >"$LOG" 2>&1 &
 APP_PID=$!
 trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
 
@@ -44,10 +44,11 @@ while [ $SECONDS -lt $deadline ]; do
     seen=$((seen + 1))
     line="$(grep '^TOUR STEP ' "$LOG" | sed -n "${seen}p")"
     name="$(echo "$line" | cut -d' ' -f3)"
-    shot="$(echo "$line" | cut -d' ' -f4)"
+    target="$(echo "$line" | cut -d' ' -f4)"
     sleep 0.5
-    screencapture -x -o -l "${shot:-$window}" "$OUT/$(printf '%02d' "$seen")-$name.png" \
-      || echo "Screenshot $name failed (window ${shot:-$window})"
+    shot="$OUT/$(printf '%02d' "$seen")-$name.png"
+    screencapture -x -o -l "${target:-$window}" "$shot.tmp" && mv "$shot.tmp" "$shot" \
+      || { echo "Screenshot $name failed (window ${target:-$window})"; touch "$shot"; }
   done
   grep -q '^TOUR DONE' "$LOG" && break
 done
