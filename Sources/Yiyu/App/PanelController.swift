@@ -9,7 +9,7 @@ final class PanelController {
     private enum Layout {
         static let expandedWidth: CGFloat = 344
         static let expandedHeight: CGFloat = 600
-        static let collapsedSize = CGSize(width: 300, height: 46)
+        static let collapsedSize = CGSize(width: PanelBadge.size, height: PanelBadge.size)
         static let screenMargin: CGFloat = 10
     }
 
@@ -53,6 +53,10 @@ final class PanelController {
 
     #if DEBUG
     var debugWindow: NSPanel { panel }
+    /// Set by the debug tour so its synthetic clicks never take the keyboard from the user.
+    var keepsKeyboardAway = false
+    #else
+    let keepsKeyboardAway = false
     #endif
 
     func show() {
@@ -75,7 +79,7 @@ final class PanelController {
         ui.isCollapsed = false
         reposition()
         panel.orderFrontRegardless()
-        if focus {
+        if focus && !keepsKeyboardAway {
             panel.makeKey()
             ui.focusRequest += 1
         }
@@ -131,6 +135,7 @@ final class PanelController {
             margin: Layout.screenMargin
         )
         panel.setFrame(frame, display: true)
-        panel.invalidateShadow()
+        // The shadow follows the drawn shape, which SwiftUI redraws on the next pass.
+        DispatchQueue.main.async { [panel] in panel.invalidateShadow() }
     }
 }

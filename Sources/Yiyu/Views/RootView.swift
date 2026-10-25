@@ -9,18 +9,18 @@ struct RootView: View {
     var body: some View {
         Group {
             if ui.isCollapsed {
-                CollapsedStrip(model: model, onExpand: actions.expand, onDragEnd: actions.panelDidMove)
+                CollapsedBadge(model: model, onExpand: actions.expand, onDragEnd: actions.panelDidMove)
             } else {
                 ExpandedPanel(model: model, ui: ui, actions: actions)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .background(Theme.paper)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
+                            .strokeBorder(Theme.goldFaint, lineWidth: 0.5)
+                    )
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Theme.paper)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
-                .strokeBorder(Theme.goldFaint, lineWidth: 0.5)
-        )
         .environment(\.colorScheme, .dark)
         .tint(Theme.gold)
     }
@@ -81,10 +81,13 @@ private struct PanelHeader: View {
             .padding(.leading, Theme.rowInset)
             .padding(.top, 14)
             .padding(.bottom, 8)
-            .overlay(WindowDragArea(hint: "拖动来移动面板", onDragEnd: actions.panelDidMove))
+            .overlay(WindowDragArea(
+                hint: "点一下收起，拖动来移动",
+                onClick: actions.toggleCollapsed,
+                onDragEnd: actions.panelDidMove
+            ))
 
             HStack(spacing: 2) {
-                IconButton(systemName: "chevron.up", help: "收起（⌃⌥T）", action: actions.toggleCollapsed)
                 Menu {
                     Button("隐藏面板", action: actions.hidePanel)
                     Button("放回右上角", action: actions.resetPosition)
@@ -167,54 +170,5 @@ private struct FiredBanner: View {
         .background(RoundedRectangle(cornerRadius: 8).fill(Theme.seal.opacity(0.16)))
         .padding(.horizontal, 10)
         .padding(.bottom, 6)
-    }
-}
-
-/// The slim strip shown when the panel is collapsed. Clicking anywhere expands it;
-/// dragging it moves the panel.
-private struct CollapsedStrip: View {
-    let model: AppModel
-    let onExpand: @MainActor () -> Void
-    let onDragEnd: @MainActor () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text("\(model.today.day)")
-                .font(Theme.serif(22, weight: .semibold))
-                .foregroundStyle(Theme.gold)
-                .monospacedDigit()
-            Text(model.todaySummary)
-                .font(Theme.bodyStrong)
-                .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-            Spacer(minLength: 6)
-            nextReminderLabel
-            Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Theme.inkMuted)
-        }
-        .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(WindowDragArea(hint: "点一下展开（⌃⌥T），拖动来移动", onClick: onExpand, onDragEnd: onDragEnd))
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: "展开") { onExpand() }
-    }
-
-    @ViewBuilder private var nextReminderLabel: some View {
-        if let fired = model.firedReminders.first {
-            Text("到时间：\(fired.title)")
-                .font(Theme.caption.weight(.semibold))
-                .foregroundStyle(Theme.seal)
-                .lineLimit(1)
-        } else if let next = model.nextReminder {
-            let isDue = next.fireAt <= model.now
-            Text("\(model.labels.reminderTime(next.fireAt, now: model.now)) \(next.title)")
-                .font(Theme.caption)
-                .foregroundStyle(isDue ? Theme.seal : Theme.inkMuted)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: 120, alignment: .trailing)
-        }
     }
 }

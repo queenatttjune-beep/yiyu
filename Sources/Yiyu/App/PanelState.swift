@@ -30,7 +30,8 @@ enum PanelTab: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class PanelState {
-    var isCollapsed = false
+    /// The panel starts tucked away as a small badge; a click or ⌃⌥T opens it.
+    var isCollapsed = true
     var tab: PanelTab = .today
     /// Bumped to ask the current page to focus its input field.
     var focusRequest = 0
