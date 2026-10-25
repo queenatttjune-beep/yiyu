@@ -18,6 +18,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         item.button?.image = Self.cornerIcon()
         item.button?.toolTip = "一隅"
         let menu = NSMenu()
+        menu.autoenablesItems = false
         menu.delegate = self
         item.menu = menu
     }
@@ -36,6 +37,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        let reset = addItem(to: menu, title: "放回右上角", action: #selector(resetPosition))
+        reset.isEnabled = panel.hasCustomPosition
         let login = addItem(to: menu, title: "登录时自动打开", action: #selector(toggleLoginItem))
         login.state = LoginItem.isEnabled ? .on : .off
         addItem(to: menu, title: "打开数据文件夹", action: #selector(openDataFolder))
@@ -61,6 +64,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             panel.expand(focus: true)
         } else {
             panel.toggleCollapsed()
+        }
+    }
+
+    @objc private func resetPosition() {
+        panel.resetPosition()
+        if !panel.isVisible {
+            panel.show()
         }
     }
 

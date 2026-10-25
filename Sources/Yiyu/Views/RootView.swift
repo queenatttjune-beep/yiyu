@@ -9,7 +9,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if ui.isCollapsed {
-                CollapsedStrip(model: model, onExpand: actions.expand)
+                CollapsedStrip(model: model, onExpand: actions.expand, onDragEnd: actions.panelDidMove)
             } else {
                 ExpandedPanel(model: model, ui: ui, actions: actions)
             }
@@ -62,24 +62,32 @@ private struct PanelHeader: View {
     let actions: PanelActions
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("\(model.today.day)")
-                .font(Theme.serif(40, weight: .semibold))
-                .foregroundStyle(Theme.gold)
-                .monospacedDigit()
-            VStack(alignment: .leading, spacing: 3) {
-                Text("\(Labels.chineseMonth(model.today.month))  \(model.labels.weekday(model.today))")
-                    .font(Theme.serif(14, weight: .medium))
-                    .foregroundStyle(Theme.ink)
-                Text(model.todaySummary)
-                    .font(Theme.caption)
-                    .foregroundStyle(Theme.inkMuted)
+        HStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("\(model.today.day)")
+                    .font(Theme.serif(40, weight: .semibold))
+                    .foregroundStyle(Theme.gold)
+                    .monospacedDigit()
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(Labels.chineseMonth(model.today.month))  \(model.labels.weekday(model.today))")
+                        .font(Theme.serif(14, weight: .medium))
+                        .foregroundStyle(Theme.ink)
+                    Text(model.todaySummary)
+                        .font(Theme.caption)
+                        .foregroundStyle(Theme.inkMuted)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(.leading, Theme.rowInset)
+            .padding(.top, 14)
+            .padding(.bottom, 8)
+            .overlay(WindowDragArea(hint: "拖动来移动面板", onDragEnd: actions.panelDidMove))
+
             HStack(spacing: 2) {
                 IconButton(systemName: "chevron.up", help: "收起（⌃⌥T）", action: actions.toggleCollapsed)
                 Menu {
                     Button("隐藏面板", action: actions.hidePanel)
+                    Button("放回右上角", action: actions.resetPosition)
                     Button("打开数据文件夹", action: actions.openDataFolder)
                     Divider()
                     Button("退出一隅", action: actions.quit)
@@ -94,10 +102,10 @@ private struct PanelHeader: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
             }
+            .padding(.leading, 12)
+            .padding(.trailing, Theme.rowInset)
+            .padding(.top, 6)
         }
-        .padding(.horizontal, Theme.rowInset)
-        .padding(.top, 14)
-        .padding(.bottom, 8)
     }
 }
 
@@ -162,34 +170,35 @@ private struct FiredBanner: View {
     }
 }
 
-/// The slim strip shown when the panel is collapsed. Clicking anywhere expands it.
+/// The slim strip shown when the panel is collapsed. Clicking anywhere expands it;
+/// dragging it moves the panel.
 private struct CollapsedStrip: View {
     let model: AppModel
     let onExpand: @MainActor () -> Void
+    let onDragEnd: @MainActor () -> Void
 
     var body: some View {
-        Button(action: onExpand) {
-            HStack(spacing: 10) {
-                Text("\(model.today.day)")
-                    .font(Theme.serif(22, weight: .semibold))
-                    .foregroundStyle(Theme.gold)
-                    .monospacedDigit()
-                Text(model.todaySummary)
-                    .font(Theme.bodyStrong)
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                Spacer(minLength: 6)
-                nextReminderLabel
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Theme.inkMuted)
-            }
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
+        HStack(spacing: 10) {
+            Text("\(model.today.day)")
+                .font(Theme.serif(22, weight: .semibold))
+                .foregroundStyle(Theme.gold)
+                .monospacedDigit()
+            Text(model.todaySummary)
+                .font(Theme.bodyStrong)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+            Spacer(minLength: 6)
+            nextReminderLabel
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Theme.inkMuted)
         }
-        .buttonStyle(.plain)
-        .help("展开（⌃⌥T）")
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(WindowDragArea(hint: "点一下展开（⌃⌥T），拖动来移动", onClick: onExpand, onDragEnd: onDragEnd))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "展开") { onExpand() }
     }
 
     @ViewBuilder private var nextReminderLabel: some View {
