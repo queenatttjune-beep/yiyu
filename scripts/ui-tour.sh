@@ -42,9 +42,12 @@ while [ $SECONDS -lt $deadline ]; do
   steps="$(grep -c '^TOUR STEP ' "$LOG" || true)"
   while [ "$seen" -lt "$steps" ]; do
     seen=$((seen + 1))
-    name="$(grep '^TOUR STEP ' "$LOG" | sed -n "${seen}p" | cut -d' ' -f3)"
+    line="$(grep '^TOUR STEP ' "$LOG" | sed -n "${seen}p")"
+    name="$(echo "$line" | cut -d' ' -f3)"
+    shot="$(echo "$line" | cut -d' ' -f4)"
     sleep 0.5
-    screencapture -x -o -l "$window" "$OUT/$(printf '%02d' "$seen")-$name.png"
+    screencapture -x -o -l "${shot:-$window}" "$OUT/$(printf '%02d' "$seen")-$name.png" \
+      || echo "Screenshot $name failed (window ${shot:-$window})"
   done
   grep -q '^TOUR DONE' "$LOG" && break
 done

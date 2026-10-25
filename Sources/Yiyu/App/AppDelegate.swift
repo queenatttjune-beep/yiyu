@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let dataDirectoryOverride = "YIYU_DATA_DIR"
 
     private var model: AppModel?
+    private var appearance: AppearanceModel?
+    private var appearanceWindow: AppearanceWindowController?
     private var panel: PanelController?
     private var statusBar: StatusBarController?
     private var hotKey: HotKey?
@@ -32,9 +34,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if case .recovered(let backupURL) = loaded.outcome {
             model.reportLoadProblem("数据文件读不出来，已另存为 \(backupURL.lastPathComponent)，现在从空白开始。")
         }
+        let appearance = loadAppearance(in: store.directory)
+        Theme.appearance = appearance
 
         let ui = PanelState()
         let panel = PanelController(model: model, ui: ui, dataFolder: store.directory)
+        panel.applyAppearance(isDark: appearance.selectedSkin.palette.isDark)
+        appearance.onSkinChanged = { [weak panel] skin in panel?.applyAppearance(isDark: skin.palette.isDark) }
+        let appearanceWindow = AppearanceWindowController(model: appearance)
         let notifier = ReminderNotifier(calendar: model.calendar)
         model.onRemindersChanged = { [weak notifier] reminders in notifier?.sync(reminders) }
         model.onRemindersFired = { [weak notifier] fired in notifier?.reminderFiredInApp(fired) }
@@ -45,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         self.model = model
+        self.appearance = appearance
+        self.appearanceWindow = appearanceWindow
         self.panel = panel
         self.notifier = notifier
         self.hotKey = hotKey
@@ -60,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             LoginItem.enableOnFirstLaunch()
         }
         #if DEBUG
-        DebugTour.runIfRequested(panel: panel, model: model, ui: ui)
+        DebugTour.runIfRequested(panel: panel, model: model, ui: ui, appearanceWindow: appearanceWindow)
         #endif
     }
 
@@ -80,6 +89,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         model?.saveNow()
+        appearance?.saveNow()
+    }
+
+    /// Reached through the responder chain from the panel's ⋯ menu and the menu bar icon (`AppearanceCommand`).
+    @objc func showAppearanceSettings(_ sender: Any?) {
+        appearanceWindow?.show()
+    }
+
+    /// Skins are a preference: if they cannot be read, the panel still opens with the default skin.
+    private func loadAppearance(in directory: URL) -> AppearanceModel {
+        let store = AppearanceStore(directory: directory)
+        do {
+            let loaded = try store.load()
+            let appearance = AppearanceModel(settings: loaded.settings, store: store)
+            if case .recovered(let backupURL) = loaded.outcome {
+                appearance.reportLoadProblem("皮肤设置读不出来，已另存为 \(backupURL.lastPathComponent)，现在用的是默认皮肤。")
+            }
+            return appearance
+        } catch {
+            NSLog("Yiyu: reading %@ failed: %@", store.fileURL.path, String(describing: error))
+            let appearance = AppearanceModel(settings: .default, store: nil)
+            appearance.reportLoadProblem("没能读取皮肤设置（\(error.localizedDescription)），这次的改动不会保存。")
+            return appearance
+        }
     }
 
     /// `kill`, `pkill` and logout send SIGTERM; go through normal termination so edits get saved.

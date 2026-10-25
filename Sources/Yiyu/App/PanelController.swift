@@ -119,4 +119,9 @@ final class PanelController {
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         panel.invalidateShadow()
     }
+
+    /// Light skins need light context menus, date pickers and text cursors.
+    func applyAppearance(isDark: Bool) {
+        panel.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
+    }
 }

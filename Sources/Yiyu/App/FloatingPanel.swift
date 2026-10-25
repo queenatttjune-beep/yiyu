@@ -53,7 +53,7 @@ final class FloatingPanel: NSPanel {
 }
 
 /// A ⌘-key press, without ⌃ or ⌥.
-private struct CommandShortcut {
+struct CommandShortcut {
     let key: String
     let isShifted: Bool
 

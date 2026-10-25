@@ -21,6 +21,7 @@ struct DebugTour {
     let panel: PanelController
     let model: AppModel
     let ui: PanelState
+    let appearanceWindow: AppearanceWindowController
 
     private var window: NSPanel { panel.debugWindow }
 
@@ -30,14 +31,16 @@ struct DebugTour {
 
     static var isRequested: Bool { requestedMode != nil }
 
-    static func runIfRequested(panel: PanelController, model: AppModel, ui: PanelState) {
+    static func runIfRequested(panel: PanelController, model: AppModel, ui: PanelState, appearanceWindow: AppearanceWindowController) {
         guard let mode = requestedMode else { return }
-        let tour = DebugTour(panel: panel, model: model, ui: ui)
+        let tour = DebugTour(panel: panel, model: model, ui: ui, appearanceWindow: appearanceWindow)
         Task {
             tour.log("WINDOW \(panel.debugWindow.windowNumber)")
             try? await Task.sleep(for: .seconds(1))
             switch mode {
-            case .gallery: await tour.runGallery()
+            case .gallery:
+                await tour.runGallery()
+                await tour.runSkins()
             case .interactive: await tour.runInteractive()
             }
             tour.log("DONE")
@@ -168,10 +171,61 @@ struct DebugTour {
         check("Esc collapses and gives the keyboard back", ui.isCollapsed && !window.isKeyWindow)
     }
 
+    /// Every built-in skin on the panel, an edit to one, and the 外观与皮肤 window, without taking the keyboard.
+    private func runSkins() async {
+        let appearance = appearanceWindow.model
+        ui.tab = .today
+        for skin in Skin.builtIns.dropFirst() {
+            appearance.select(skin.id)
+            await settle()
+            check("\(skin.name) gives the panel a \(skin.palette.isDark ? "dark" : "light") appearance",
+                  isDark(window) == skin.palette.isDark)
+            await step("skin-\(skin.id)")
+        }
+        ui.tab = .diary
+        await step("skin-diary")
+        ui.tab = .today
+
+        appearance.select(Skin.default.id)
+        appearance.setColor(ThemeColor(rgb: 0x7FB8A4), for: .accent)
+        let copy = appearance.selectedSkin
+        check("editing a built-in skin selects an edited copy",
+              !appearance.isSelectedBuiltIn && copy.name == "我的磁青泥金" && copy.palette.accent.rgb == 0x7FB8A4)
+        check("the built-in skin itself is unchanged", Skin.default.palette.accent.hex == "#C8A96A")
+        appearance.saveNow()
+        let dataDirectory = ProcessInfo.processInfo.environment["YIYU_DATA_DIR"].map { URL(fileURLWithPath: $0) }
+        let saved = dataDirectory.flatMap { try? AppearanceStore(directory: $0).load().settings }
+        check("the edited copy is saved to appearance.json", saved == appearance.settings)
+
+        appearanceWindow.show(activate: false)
+        await settle()
+        if let settingsWindow = appearanceWindow.debugWindow {
+            await step("appearance-window", window: settingsWindow)
+            appearance.select("xuanzhi")
+            await settle()
+            await step("appearance-window-light", window: settingsWindow)
+            check("opening the appearance window left the keyboard alone",
+                  !settingsWindow.isKeyWindow && !window.isKeyWindow)
+        } else {
+            check("the appearance window opens", false)
+        }
+        appearanceWindow.close()
+
+        appearance.delete(copy.id)
+        appearance.select(Skin.default.id)
+        await settle()
+        check("back on the default skin the panel is dark again", isDark(window) && appearance.customSkins.isEmpty)
+    }
+
+    private func isDark(_ window: NSWindow) -> Bool {
+        window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    }
+
     // MARK: - Helpers
 
-    private func step(_ name: String) async {
-        log("STEP \(name)")
+    /// Logs `STEP <name>`, plus the window number when the shot is of a window other than the panel.
+    private func step(_ name: String, window shot: NSWindow? = nil) async {
+        log("STEP \(name)" + (shot.map { " \($0.windowNumber)" } ?? ""))
         try? await Task.sleep(for: Self.shotPause)
     }
 
