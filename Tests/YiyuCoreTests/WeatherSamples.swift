@@ -35,12 +35,18 @@ enum WeatherSamples {
         }
     }
 
-    static func day(_ day: DayKey, min: Double, max: Double, text: String = "多云", uv: Double? = 4) -> DailyWeather {
+    /// Sunrise and sunset are hours of `day`, e.g. 6.1 for 6:06.
+    static func day(
+        _ day: DayKey, min: Double, max: Double, text: String = "多云", uv: Double? = 4,
+        sunrise: Double? = nil, sunset: Double? = nil
+    ) -> DailyWeather {
         let start = day.startOfDay(in: Fixtures.calendar)
         let end = day.adding(days: 1, calendar: Fixtures.calendar).startOfDay(in: Fixtures.calendar)
         return DailyWeather(
             start: start, end: end, temperatureMax: max, temperatureMin: min, uvIndexMax: uv,
-            daytime: WeatherCondition(code: "101", text: text), precipitationProbability: nil
+            daytime: WeatherCondition(code: "101", text: text), precipitationProbability: nil,
+            sunrise: sunrise.map { start.addingTimeInterval($0 * 3600) },
+            sunset: sunset.map { start.addingTimeInterval($0 * 3600) }
         )
     }
 

@@ -80,9 +80,13 @@ final class WeatherModel {
         return WeatherScene.now(in: snapshot, at: now)
     }
 
-    /// "杭州 小雨 19°", for the hover text of the badge and the menu bar icon.
+    /// Whether the sun is down in the city now, so clear skies get the moon rather than the sun.
+    var isNight: Bool { snapshot?.isNight(at: now) ?? false }
+
+    /// "杭州 小雨 19°", for the hover text of the badge and the menu bar icon; `nil` once the
+    /// forecast is too old to say what it is like outside now.
     var briefLine: String? {
-        guard isConfigured, let snapshot, let city else { return nil }
+        guard isConfigured, let snapshot, let city, !snapshot.isStale(now: now) else { return nil }
         return "\(city.name) \(snapshot.current.condition.text) \(Int(snapshot.current.temperature.rounded()))°"
     }
 

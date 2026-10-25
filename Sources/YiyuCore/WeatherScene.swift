@@ -38,9 +38,10 @@ public struct WeatherScene: Equatable, Sendable {
     }
 
     /// The scene for a 和风天气 weather code (https://dev.qweather.com/docs/resource/icons/).
-    /// Cloudy and overcast skies, heat and cold leave the panel as it is.
-    public init(code: String) {
-        guard let number = Int(code) else {
+    /// Cloudy and overcast skies, heat and cold leave the panel as it is. The v1 weather API sends
+    /// daytime codes around the clock, so `atNight` turns its clear skies to moonlight.
+    public init(code: String, atNight: Bool = false) {
+        guard let number = Int(atNight ? WeatherCondition.nightCode(for: code) : code) else {
             self = .calm
             return
         }
@@ -64,15 +65,16 @@ public struct WeatherScene: Equatable, Sendable {
     }
 
     /// The scene for the weather now: the current conditions while they are fresh, then the hourly
-    /// forecast for this hour. Calm when neither is known, or when the forecast is so old that the
-    /// header greys it out.
+    /// forecast for this hour, by moonlight between sunset and sunrise. Calm when neither is known,
+    /// or when the forecast is so old that the header greys it out.
     public static func now(in snapshot: WeatherSnapshot?, at date: Date) -> WeatherScene {
         guard let snapshot, !snapshot.isStale(now: date) else { return .calm }
+        let atNight = snapshot.isNight(at: date) ?? false
         if date.timeIntervalSince(snapshot.fetchedAt) < currentFreshness {
-            return WeatherScene(code: snapshot.current.condition.code)
+            return WeatherScene(code: snapshot.current.condition.code, atNight: atNight)
         }
         let hour = snapshot.hours.first { $0.time <= date && date < $0.time.addingTimeInterval(3600) }
-        return hour.map { WeatherScene(code: $0.condition.code) } ?? .calm
+        return hour.map { WeatherScene(code: $0.condition.code, atNight: atNight) } ?? .calm
     }
 
     public var isCalm: Bool { self == .calm }

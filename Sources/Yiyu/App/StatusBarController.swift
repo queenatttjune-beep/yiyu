@@ -11,6 +11,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let dataFolder: URL
     private let isHotKeyAvailable: Bool
     private var shownMotif: WeatherScene.Motif?
+    private var shownLine: String?
 
     init(panel: PanelController, weather: WeatherModel, dataFolder: URL, isHotKeyAvailable: Bool) {
         self.item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -38,7 +39,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             item.button?.image = StatusBarIcon.image(for: motif)
             shownMotif = motif
         }
-        item.button?.toolTip = line.map { "一隅\n\($0)" } ?? "一隅"
+        if line != shownLine || item.button?.toolTip == nil {
+            item.button?.toolTip = line.map { "一隅\n\($0)" } ?? "一隅"
+            shownLine = line
+        }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {

@@ -139,6 +139,35 @@ struct WeatherCityTests {
     }
 }
 
+struct WeatherConditionTests {
+    @Test(arguments: [
+        ("100", "150"), ("101", "151"), ("102", "152"), ("103", "153"), ("300", "350"), ("301", "351"),
+        ("406", "456"), ("407", "457"), ("150", "150"), ("305", "305"), ("104", "104"), ("abc", "abc"),
+    ])
+    func daytimeCodesHaveNightVersions(day: String, night: String) {
+        #expect(WeatherCondition.nightCode(for: day) == night)
+    }
+}
+
+struct WeatherSnapshotNightTests {
+    private func snapshot(sunrise: Double?, sunset: Double?) -> WeatherSnapshot {
+        WeatherSamples.snapshot(hours: [], days: [
+            WeatherSamples.day(Fixtures.today, min: 15, max: 22, sunrise: sunrise, sunset: sunset),
+        ])
+    }
+
+    @Test(arguments: [(5.5, true), (6.1, false), (12.0, false), (17.4, true), (23.5, true)])
+    func nightIsBeforeSunriseOrAfterSunset(hour: Double, isNight: Bool) {
+        let moment = Fixtures.today.startOfDay(in: Fixtures.calendar).addingTimeInterval(hour * 3600)
+        #expect(snapshot(sunrise: 6.1, sunset: 17.4).isNight(at: moment) == isNight)
+    }
+
+    @Test func withoutSunTimesNightIsUnknown() {
+        #expect(snapshot(sunrise: nil, sunset: nil).isNight(at: Fixtures.now) == nil)
+        #expect(snapshot(sunrise: 6.1, sunset: 17.4).isNight(at: Fixtures.date(2026, 10, 27, 1)) == nil)
+    }
+}
+
 struct WeatherSnapshotTests {
     private static let ages: [(TimeInterval, String)] = [
         (30, "刚刚更新"), (25 * 60, "25 分钟前更新"), (3 * 3600, "3 小时前更新"), (50 * 3600, "2 天前更新"),
@@ -179,6 +208,14 @@ struct WeatherSymbolTests {
     @Test(arguments: symbols)
     func codesMapToSymbols(code: String, symbol: String) {
         #expect(WeatherSymbol.name(for: code) == symbol)
+    }
+
+    /// 和风天气's v1 weather API sends "100" for a clear sky at midnight too.
+    @Test func nightShowsTheMoon() {
+        #expect(WeatherSymbol.name(for: "100", atNight: true) == "moon.stars")
+        #expect(WeatherSymbol.name(for: "103", atNight: true) == "cloud.moon")
+        #expect(WeatherSymbol.name(for: "300", atNight: true) == "cloud.moon.rain")
+        #expect(WeatherSymbol.name(for: "305", atNight: true) == "cloud.drizzle")
     }
 
     @Test func everySymbolExistsOnThisMac() {

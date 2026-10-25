@@ -8,8 +8,10 @@ import YiyuCore
 struct PanelSkyLayers {
     private static let rayCount = 7
     private static let starCount = 16
-    /// How much rain and snow are left at the bottom edge, relative to the top.
-    private static let bottomFade = 0.45
+    /// How much of the rain and snow the paper veils at the bottom edge.
+    private static let bottomVeil = 0.55
+    private static let rainFrameRate: Float = 24
+    private static let snowFrameRate: Float = 20
 
     let scene: WeatherScene
     let colors: SkyColors
@@ -25,15 +27,22 @@ struct PanelSkyLayers {
         case .moon(let strength): addMoon(strength, at: corner, to: root, size: size)
         case .plain: break
         }
-        if let mist = scene.mist {
-            addMist(mist, to: root, size: size)
-        }
         let bounds = CGRect(origin: .zero, size: size)
         if let rain = scene.rain {
-            root.addSublayer(fadingDown(SkyLayerKit.falling(.rain(rain), colors: colors.rain, in: bounds, scale: scale, isAnimated: isAnimated)))
+            root.addSublayer(SkyLayerKit.falling(
+                .rain(rain), colors: colors.rain, in: bounds, scale: scale, frameRate: isAnimated ? Self.rainFrameRate : nil
+            ))
         }
         if let snow = scene.snow {
-            root.addSublayer(fadingDown(SkyLayerKit.falling(.snow(snow), colors: colors.snow, in: bounds, scale: scale, isAnimated: isAnimated)))
+            root.addSublayer(SkyLayerKit.falling(
+                .snow(snow), colors: colors.snow, in: bounds, scale: scale, frameRate: isAnimated ? Self.snowFrameRate : nil
+            ))
+        }
+        if scene.rain != nil || scene.snow != nil {
+            root.addSublayer(SkyLayerKit.veil(colors.paper, in: bounds, bottomOpacity: Self.bottomVeil))
+        }
+        if let mist = scene.mist {
+            addMist(mist, to: root, size: size)
         }
         return root
     }
@@ -54,39 +63,48 @@ struct PanelSkyLayers {
 
         // Two fans of rays swaying at different paces look less mechanical than one.
         for fan in 0..<2 {
-            let reach: CGFloat = 560
-            let holder = CALayer()
-            holder.frame = square(around: corner, radius: reach)
-            let center = CGPoint(x: reach, y: reach)
-            for index in stride(from: fan, to: Self.rayCount, by: 2) {
-                holder.addSublayer(ray(index, from: center, brightness: brightness))
-            }
-            animate(holder, SkyLayerKit.swing(
+            let fanLayer = rays(Array(stride(from: fan, to: Self.rayCount, by: 2)), from: corner, brightness: brightness)
+            animate(fanLayer, SkyLayerKit.swing(
                 "transform.rotation.z", from: -0.035, to: 0.035, period: fan == 0 ? 23 : 31, phase: fan == 0 ? 0 : 0.4
             ))
-            root.addSublayer(holder)
+            root.addSublayer(fanLayer)
         }
     }
 
-    private func ray(_ index: Int, from center: CGPoint, brightness: Double) -> CALayer {
-        let length = 380 + 180 * Scatter.unit(index, salt: 11)
-        let spread = (1.4 + 1.6 * Scatter.unit(index, salt: 12)) * .pi / 180
-        let angle = (102 + Double(index) * 16) * .pi / 180
-        let shaft = SkyLayerKit.glow(in: square(around: center, radius: length), stops: [
-            (0, colors.sunlight.cgColor(alpha: 0.1 * brightness)),
-            (1, colors.sunlight.cgColor(alpha: 0)),
-        ], scale: scale)
-        let local = CGPoint(x: length, y: length)
-        let wedge = CGMutablePath()
-        wedge.move(to: local)
-        wedge.addLine(to: point(from: local, angle: angle - spread, distance: length))
-        wedge.addLine(to: point(from: local, angle: angle + spread, distance: length))
-        wedge.closeSubpath()
-        let mask = CAShapeLayer()
-        mask.path = wedge
-        mask.contentsScale = scale
-        shaft.mask = mask
-        return shaft
+    /// Soft shafts of light fanning out of `corner`, drawn once into a single image that turns
+    /// about the corner.
+    private func rays(_ indices: [Int], from corner: CGPoint, brightness: Double) -> CALayer {
+        let wedges = indices.map { index -> (path: CGPath, length: Double) in
+            let length = 380 + 180 * Scatter.unit(index, salt: 11)
+            let spread = (1.4 + 1.6 * Scatter.unit(index, salt: 12)) * .pi / 180
+            let angle = (102 + Double(index) * 16) * .pi / 180
+            let wedge = CGMutablePath()
+            wedge.move(to: corner)
+            wedge.addLine(to: point(from: corner, angle: angle - spread, distance: length))
+            wedge.addLine(to: point(from: corner, angle: angle + spread, distance: length))
+            wedge.closeSubpath()
+            return (wedge, length)
+        }
+        let frame = wedges.reduce(CGRect(origin: corner, size: .zero)) { $0.union($1.path.boundingBox) }
+        let shaft = [colors.sunlight.cgColor(alpha: 0.1 * brightness), colors.sunlight.cgColor(alpha: 0)] as CFArray
+        let layer = CALayer()
+        layer.frame = frame
+        layer.anchorPoint = CGPoint(x: (corner.x - frame.minX) / frame.width, y: (corner.y - frame.minY) / frame.height)
+        layer.position = corner
+        // Soft light needs no Retina detail, and one point per pixel keeps the image small.
+        layer.contentsScale = 1
+        layer.contents = SkyLayerKit.image(size: frame.size, scale: 1) { context in
+            guard let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: shaft, locations: [0, 1]) else { return }
+            context.translateBy(x: -frame.minX, y: -frame.minY)
+            for wedge in wedges {
+                context.saveGState()
+                context.addPath(wedge.path)
+                context.clip()
+                context.drawRadialGradient(gradient, startCenter: corner, startRadius: 0, endCenter: corner, endRadius: wedge.length, options: [])
+                context.restoreGState()
+            }
+        }
+        return layer
     }
 
     /// Cool moonlight in the corner and a scatter of stars twinkling across the top of the panel.
@@ -139,17 +157,6 @@ struct PanelSkyLayers {
             ))
             root.addSublayer(haze)
         }
-    }
-
-    /// Thins rain and snow out toward the bottom of the panel.
-    private func fadingDown(_ layer: CALayer) -> CALayer {
-        let fade = CAGradientLayer()
-        fade.frame = layer.bounds
-        fade.colors = [CGColor(gray: 0, alpha: 1), CGColor(gray: 0, alpha: Self.bottomFade)]
-        fade.startPoint = CGPoint(x: 0.5, y: 0)
-        fade.endPoint = CGPoint(x: 0.5, y: 1)
-        layer.mask = fade
-        return layer
     }
 
     private func animate(_ layer: CALayer, _ animation: CABasicAnimation) {

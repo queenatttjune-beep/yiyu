@@ -15,6 +15,14 @@ struct WeatherSceneTests {
         #expect(WeatherScene(code: code) == WeatherScene(sky: .sun(.faint)))
     }
 
+    /// The v1 API sends daytime codes at night; the scene is told it is night instead.
+    @Test func clearSkiesAtNightHaveTheMoon() {
+        #expect(WeatherScene(code: "100", atNight: true) == WeatherScene(sky: .moon(.strong)))
+        #expect(WeatherScene(code: "103", atNight: true) == WeatherScene(sky: .moon(.faint)))
+        #expect(WeatherScene(code: "305", atNight: true) == WeatherScene(code: "305"))
+        #expect(WeatherScene(code: "101", atNight: true) == .calm)
+    }
+
     @Test func aClearNightHasTheMoon() {
         #expect(WeatherScene(code: "150") == WeatherScene(sky: .moon(.strong)))
         #expect(WeatherScene(code: "152") == WeatherScene(sky: .moon(.faint)))
@@ -83,16 +91,35 @@ struct WeatherSceneTests {
 }
 
 struct WeatherSceneNowTests {
-    private func snapshot(fetched minutesAgo: Double, current code: String, hours: [HourlyWeather] = []) -> WeatherSnapshot {
+    private func snapshot(
+        fetched minutesAgo: Double, current code: String, hours: [HourlyWeather] = [], at now: Date = Fixtures.now,
+        days: [DailyWeather] = []
+    ) -> WeatherSnapshot {
         WeatherSnapshot(
             cityID: WeatherSamples.hangzhou.id,
-            fetchedAt: Fixtures.now.addingTimeInterval(-minutesAgo * 60),
+            fetchedAt: now.addingTimeInterval(-minutesAgo * 60),
             current: CurrentWeather(
                 temperature: 19, feelsLike: 19, humidity: nil, windScale: nil,
                 condition: WeatherCondition(code: code, text: "")
             ),
-            hours: hours, days: []
+            hours: hours, days: days
         )
+    }
+
+    @Test func aClearSkyAfterSunsetIsMoonlit() {
+        let today = [WeatherSamples.day(Fixtures.today, min: 15, max: 22, sunrise: 6.1, sunset: 17.4)]
+        let evening = Fixtures.date(2026, 10, 25, 22)
+        #expect(WeatherScene.now(in: snapshot(fetched: 10, current: "100", at: evening, days: today), at: evening)
+            == WeatherScene(sky: .moon(.strong)))
+        #expect(WeatherScene.now(in: snapshot(fetched: 10, current: "100", days: today), at: Fixtures.now)
+            == WeatherScene(sky: .sun(.strong)))
+    }
+
+    @Test func thisHoursForecastAfterSunsetIsMoonlitToo() {
+        let today = [WeatherSamples.day(Fixtures.today, min: 15, max: 22, sunrise: 6.1, sunset: 17.4)]
+        let evening = Fixtures.date(2026, 10, 25, 21, 20)
+        let older = snapshot(fetched: 150, current: "305", hours: [hour(21, code: "102")], at: evening, days: today)
+        #expect(WeatherScene.now(in: older, at: evening) == WeatherScene(sky: .moon(.faint)))
     }
 
     private func hour(_ hour: Int, code: String) -> HourlyWeather {

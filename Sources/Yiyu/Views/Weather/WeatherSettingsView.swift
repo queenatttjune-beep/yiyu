@@ -131,7 +131,7 @@ struct WeatherSettingsView: View {
                 Label("正在获取天气…", systemImage: "arrow.triangle.2.circlepath")
             } else if let snapshot = model.snapshot, let saved = model.city {
                 Label("\(saved.name)：\(snapshot.current.condition.text) \(Int(snapshot.current.temperature.rounded()))°，\(snapshot.ageLabel(now: model.now))",
-                      systemImage: WeatherSymbol.name(for: snapshot.current.condition.code))
+                      systemImage: WeatherSymbol.name(for: snapshot.current.condition.code, atNight: model.isNight))
             }
             HStack {
                 Text(missingHint ?? "天气数据来自和风天气").font(.caption).foregroundStyle(.secondary)

@@ -67,7 +67,9 @@ public enum QWeatherResponse {
                 start: try date(day.forecastStartTime), end: try date(day.forecastEndTime),
                 temperatureMax: day.temperatureMax.value, temperatureMin: day.temperatureMin.value,
                 uvIndexMax: day.uvIndexMax, daytime: day.daytime?.condition,
-                precipitationProbability: day.daytime?.precipitation?.probability
+                precipitationProbability: day.daytime?.precipitation?.probability,
+                sunrise: day.astro?.sunrise.flatMap(QWeatherDate.parse),
+                sunset: day.astro?.sunset.flatMap(QWeatherDate.parse)
             )
         }
     }
@@ -191,9 +193,15 @@ private struct RawDaily: Decodable {
         let precipitation: RawPrecipitation?
     }
 
+    struct Astro: Decodable {
+        let sunrise: String?
+        let sunset: String?
+    }
+
     struct Day: Decodable {
         let forecastStartTime: String
         let forecastEndTime: String
+        let astro: Astro?
         let temperatureMax: Measure
         let temperatureMin: Measure
         let uvIndexMax: Double?

@@ -6,6 +6,7 @@ import YiyuCore
 /// moon in the empty upper left of the opening, and a handful of raindrops or snowflakes falling past.
 struct GateSkyLayers {
     static let grid: CGFloat = 44
+    private static let frameRate: Float = 15
     private static let opening = CGRect(x: 7, y: 7, width: 30, height: 30)
     private static let lightCenter = CGPoint(x: 14.6, y: 13.4)
     private static let stars: [(center: CGPoint, radius: CGFloat)] = [
@@ -45,10 +46,14 @@ struct GateSkyLayers {
             addMist(mist, to: root, detail: detail)
         }
         if let rain = scene.rain {
-            root.addSublayer(SkyLayerKit.falling(.gateRain(rain), colors: colors.rain, in: Self.opening, scale: detail, isAnimated: isAnimated))
+            root.addSublayer(SkyLayerKit.falling(
+                .gateRain(rain), colors: colors.rain, in: Self.opening, scale: detail, frameRate: isAnimated ? Self.frameRate : nil
+            ))
         }
         if let snow = scene.snow {
-            root.addSublayer(SkyLayerKit.falling(.gateSnow(snow), colors: colors.snow, in: Self.opening, scale: detail, isAnimated: isAnimated))
+            root.addSublayer(SkyLayerKit.falling(
+                .gateSnow(snow), colors: colors.snow, in: Self.opening, scale: detail, frameRate: isAnimated ? Self.frameRate : nil
+            ))
         }
         return root
     }

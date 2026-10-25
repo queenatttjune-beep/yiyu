@@ -3,7 +3,8 @@
 
 Serves the v1 current, hourly and daily weather and the GeoAPI city lookup for one fixed,
 believable day in Hangzhou (UTC+8): drizzling now (小雨, so the panel paints its drizzle),
-17–24°, feels like 21°, a 55% chance of rain from 14:00 to 18:00, every day. Requests without the header "X-QW-Api-Key: mock-key" get a 401 problem
+17–24°, feels like 21°, a 55% chance of rain from 14:00 to 18:00, sunrise 6:05 and sunset
+17:25, every day. Requests without the header "X-QW-Api-Key: mock-key" get a 401 problem
 response, like the real service. Prints "PORT <n>" on its first line, then serves until killed.
 """
 import json
@@ -68,6 +69,8 @@ def daily(count: int) -> dict:
         start = midnight + timedelta(days=offset)
         days.append({
             "forecastStartTime": iso(start), "forecastEndTime": iso(start + timedelta(days=1)),
+            "astro": {"sunrise": iso(start + timedelta(hours=6, minutes=5)),
+                      "sunset": iso(start + timedelta(hours=17, minutes=25))},
             "temperatureMax": measure(24.3), "temperatureMin": measure(16.8), "uvIndexMax": 4,
             "daytime": {"condition": condition(True), "precipitation": {"probability": RAIN_CHANCE, "type": "rain"}},
             "nighttime": {"condition": condition(False)},

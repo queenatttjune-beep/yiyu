@@ -78,22 +78,26 @@ while [ $SECONDS -lt $deadline ]; do
 done
 
 # Two shots of heavy rain (no mist drifting) a moment apart must differ, unless Reduce Motion stills it.
+rain_check=""
 before="$(ls "$OUT"/*-sky-rain.png 2>/dev/null | head -1)"
 after="$(ls "$OUT"/*-sky-rain-later.png 2>/dev/null | head -1)"
-if [ -s "$before" ] && [ -s "$after" ] && ! grep -q '^TOUR INFO reduce motion' "$LOG"; then
-  if cmp -s "$before" "$after"; then
-    echo "TOUR FAIL the rain falls" >>"$LOG"
+if [ -n "$before$after" ] && ! grep -q '^TOUR INFO reduce motion' "$LOG"; then
+  if [ ! -s "$before" ] || [ ! -s "$after" ]; then
+    rain_check="SKIP the rain falls: a screenshot is missing"
+  elif cmp -s "$before" "$after"; then
+    rain_check="FAIL the rain falls"
   else
-    echo "TOUR PASS the rain falls" >>"$LOG"
+    rain_check="PASS the rain falls"
   fi
 fi
 
 grep -E '^TOUR (PASS|FAIL)' "$LOG" | sed 's/^TOUR //'
+[ -n "$rain_check" ] && echo "$rain_check"
 if ! grep -q '^TOUR DONE' "$LOG"; then
   echo "Tour did not finish within ${TIMEOUT_SECONDS}s; see $LOG"
   exit 1
 fi
-if grep -q '^TOUR FAIL' "$LOG"; then
+if grep -q '^TOUR FAIL' "$LOG" || [ "${rain_check#FAIL}" != "$rain_check" ]; then
   exit 1
 fi
 echo "All checks passed. Screenshots in $OUT/"

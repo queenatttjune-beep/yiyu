@@ -15,6 +15,7 @@ struct SkyColors: Equatable {
     /// `nil` on light paper, where dark stars would read as specks of dust.
     let stars: ThemeColor?
     let sunlight: ThemeColor
+    let paper: ThemeColor
     /// The badge's own colours: the quiet light in its opening, and the ink of its blossoms.
     let accent: ThemeColor
     let ink: ThemeColor
@@ -30,6 +31,7 @@ struct SkyColors: Equatable {
             moonlight: isDark ? palette.ink : palette.inkMuted,
             stars: isDark ? palette.ink : nil,
             sunlight: isDark ? paleSun : deepSun,
+            paper: palette.paper,
             accent: palette.accent,
             ink: palette.ink
         )

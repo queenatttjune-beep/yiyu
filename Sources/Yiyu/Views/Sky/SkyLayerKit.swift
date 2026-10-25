@@ -2,8 +2,8 @@ import AppKit
 import QuartzCore
 import YiyuCore
 
-/// Building blocks for the weather layers. Whatever moves is a Core Animation animation or a
-/// particle emitter, so it runs in the window server and costs the app nothing between frames.
+/// Building blocks for the weather layers. Whatever moves is a Core Animation animation capped at a
+/// low frame rate, so it costs the app nothing between frames and the window server little.
 /// All geometry is top-down: the layers are meant for a root layer with flipped geometry.
 enum SkyLayerKit {
     /// A soft round (or, in a wide rectangle, oval) glow filling `rect`: `stops` run from the
@@ -32,10 +32,14 @@ enum SkyLayerKit {
         CGPath(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2), transform: nil)
     }
 
+    /// Slow swings look the same at 20 frames a second and spare the window server a full-rate redraw.
+    private static let slowFrameRate = CAFrameRateRange(minimum: 10, maximum: 30, preferred: 20)
+
     /// Swings `keyPath` between two values and back, easing at both ends, forever. `phase` (0...1)
     /// starts it part of the way through, so neighbours do not move in step.
     static func swing(_ keyPath: String, from: Double, to: Double, period: Double, phase: Double = 0) -> CABasicAnimation {
         let animation = CABasicAnimation(keyPath: keyPath)
+        animation.preferredFrameRateRange = slowFrameRate
         animation.fromValue = from
         animation.toValue = to
         animation.duration = period / 2
@@ -60,88 +64,112 @@ enum SkyLayerKit {
         }
     }
 
-    /// Rain or snow falling through `area`: a particle emitter when animated, otherwise one still
-    /// moment of the same drops (`PrecipitationField`).
+    private static let sheetCount = 2
+
+    /// Rain or snow falling through `area`. The drops (`PrecipitationField`) are drawn once onto a
+    /// couple of seamless sheets, each sliding down at its own speed for depth, at most `frameRate`
+    /// times a second: a full-rate particle emitter kept the window server three times as busy.
+    /// With `frameRate` nil the sheets stand still.
     static func falling(
-        _ style: PrecipitationField.Style, colors: DropColors, in area: CGRect, scale: CGFloat, isAnimated: Bool
+        _ style: PrecipitationField.Style, colors: DropColors, in area: CGRect, scale: CGFloat, frameRate: Float?
     ) -> CALayer {
-        isAnimated
-            ? emitter(style, colors: colors, in: area, scale: scale)
-            : stillDrops(style, colors: colors, in: area, scale: scale)
+        let holder = CALayer()
+        holder.frame = area
+        holder.masksToBounds = true
+        let drops = PrecipitationField.drops(style, in: area.size, at: 0)
+        for index in 0..<sheetCount {
+            let share = drops.enumerated().filter { $0.offset % sheetCount == index }.map(\.element)
+            let pace = (Double(index) + 0.5) / Double(sheetCount)
+            let speed = style.speed.lowerBound + (style.speed.upperBound - style.speed.lowerBound) * pace
+            holder.addSublayer(sheet(
+                share, style: style, colors: colors, size: area.size, scale: scale, speed: speed,
+                frameRate: frameRate, phase: pace
+            ))
+        }
+        return holder
     }
 
-    /// Keeps as many drops in the air as `style.density` asks for, falling at its speeds and slant.
-    /// Started a full fall in the past, so the area is already full of rain when it appears.
-    private static func emitter(_ style: PrecipitationField.Style, colors: DropColors, in area: CGRect, scale: CGFloat) -> CAEmitterLayer {
-        let length = middle(style.length)
-        let width = middle(style.width)
-        let rise = length * cos(style.slant)
-        let travel = Double(area.height) + rise + width
-        let inTheAir = Double(area.width * area.height) / 10_000 * style.density
-
-        let cell = CAEmitterCell()
-        cell.contents = particleImage(style, colors: colors, length: length, width: width, scale: scale)
-        cell.contentsScale = scale
-        cell.birthRate = Float(inTheAir * middle(style.speed) / travel)
-        cell.lifetime = Float(travel / style.speed.lowerBound)
-        // Speeds in a style are straight down; along the slant the drop covers a little more.
-        cell.velocity = middle(style.speed) / cos(style.slant)
-        cell.velocityRange = halfSpan(style.speed) / cos(style.slant)
-        // Core Animation measures the angle from straight up; in this top-down layer π is straight down.
-        cell.emissionLongitude = .pi - style.slant
-        cell.emissionRange = style.kind == .snow ? 0.12 : 0
-        cell.scaleRange = halfSpan(style.kind == .rain ? style.length : style.width) / (style.kind == .rain ? length : width)
-        // The image carries the colour; the cell only varies how see-through each drop is.
-        cell.color = ThemeColor.white.cgColor(alpha: middle(style.opacity))
-        cell.alphaRange = Float(halfSpan(style.opacity))
-
-        let layer = CAEmitterLayer()
-        layer.frame = area
-        layer.masksToBounds = true
-        // Wide enough that leaning drops still cover both edges on the way down.
-        let drift = Double(area.height) * tan(style.slant)
-        let left = min(0, -drift)
-        let right = max(Double(area.width), Double(area.width) - drift)
-        layer.emitterShape = .line
-        layer.emitterMode = .outline
-        layer.emitterPosition = CGPoint(x: (left + right) / 2, y: -rise - width)
-        layer.emitterSize = CGSize(width: right - left, height: 0)
-        layer.emitterCells = [cell]
-        layer.beginTime = CACurrentMediaTime() - Double(cell.lifetime)
-        return layer
-    }
-
-    /// One drop: a slanting streak for rain, a soft-edged flake for snow.
-    private static func particleImage(
-        _ style: PrecipitationField.Style, colors: DropColors, length: Double, width: Double, scale: CGFloat
-    ) -> CGImage? {
-        let reach = style.kind == .rain ? CGSize(width: length * sin(style.slant), height: length * cos(style.slant)) : .zero
-        let size = CGSize(width: abs(reach.width) + width * 2, height: reach.height + width * 2)
-        return image(size: size, scale: scale) { context in
-            switch style.kind {
-            case .rain:
-                let tail = CGPoint(x: width + max(0, -reach.width), y: width)
-                streak(in: context, from: tail, to: CGPoint(x: tail.x + reach.width, y: tail.y + reach.height),
-                       width: width, color: colors.body.cgColor())
-            case .snow:
-                flake(in: context, at: CGPoint(x: width, y: width), diameter: width, colors: colors, alpha: 1)
+    /// Tiles of one sheet image covering the area, moved one tile down (and sideways along the
+    /// slant) per loop; the image wraps around at its edges, so the loop never shows a seam.
+    private static func sheet(
+        _ drops: [PrecipitationField.Drop], style: PrecipitationField.Style, colors: DropColors,
+        size: CGSize, scale: CGFloat, speed: Double, frameRate: Float?, phase: Double
+    ) -> CALayer {
+        let drift = Double(size.height) * tan(style.slant)
+        let picture = image(size: size, scale: scale) { context in
+            for drop in drops {
+                for row in -1...1 {
+                    for column in -1...1 {
+                        let shift = CGPoint(x: Double(column) * size.width + Double(row) * drift, y: Double(row) * size.height)
+                        draw(drop, shiftedBy: shift, style: style, colors: colors, in: context)
+                    }
+                }
             }
+        }
+        let tiles = CALayer()
+        tiles.frame = CGRect(origin: .zero, size: size)
+        for row in -1...0 {
+            for column in -1...1 {
+                let tile = CALayer()
+                tile.frame = CGRect(
+                    x: Double(column) * size.width + Double(row) * drift, y: Double(row) * size.height,
+                    width: size.width, height: size.height
+                )
+                tile.contents = picture
+                tile.contentsScale = scale
+                tiles.addSublayer(tile)
+            }
+        }
+        guard let frameRate else { return tiles }
+        let range = CAFrameRateRange(minimum: frameRate / 2, maximum: frameRate, preferred: frameRate)
+        let fall = CABasicAnimation(keyPath: "position")
+        fall.byValue = NSValue(point: CGPoint(x: drift, y: size.height))
+        fall.isAdditive = true
+        fall.duration = Double(size.height) / speed
+        fall.repeatCount = .infinity
+        fall.timingFunction = CAMediaTimingFunction(name: .linear)
+        fall.timeOffset = phase * fall.duration
+        fall.preferredFrameRateRange = range
+        tiles.add(fall, forKey: "fall")
+        if style.sway > 0 {
+            let sway = CABasicAnimation(keyPath: "position.x")
+            sway.fromValue = -style.sway
+            sway.toValue = style.sway
+            sway.isAdditive = true
+            sway.duration = 3 + 2 * phase
+            sway.autoreverses = true
+            sway.repeatCount = .infinity
+            sway.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            sway.preferredFrameRateRange = range
+            tiles.add(sway, forKey: "sway")
+        }
+        return tiles
+    }
+
+    private static func draw(
+        _ drop: PrecipitationField.Drop, shiftedBy shift: CGPoint, style: PrecipitationField.Style,
+        colors: DropColors, in context: CGContext
+    ) {
+        let head = CGPoint(x: drop.head.x + shift.x, y: drop.head.y + shift.y)
+        switch style.kind {
+        case .rain:
+            let tail = CGPoint(x: drop.tail.x + shift.x, y: drop.tail.y + shift.y)
+            streak(in: context, from: tail, to: head, width: drop.width, color: colors.body.cgColor(alpha: drop.opacity))
+        case .snow:
+            flake(in: context, at: head, diameter: drop.width, colors: colors, alpha: drop.opacity)
         }
     }
 
-    private static func stillDrops(_ style: PrecipitationField.Style, colors: DropColors, in area: CGRect, scale: CGFloat) -> CALayer {
+    /// A veil of `color` thickening toward the bottom, laid over rain or snow to thin it out there
+    /// (cheaper than a mask, which the window server would redo every frame).
+    static func veil(_ color: ThemeColor, in area: CGRect, bottomOpacity: Double) -> CALayer {
         let layer = CALayer()
         layer.frame = area
-        layer.contentsScale = scale
-        layer.contents = image(size: area.size, scale: scale) { context in
-            for drop in PrecipitationField.drops(style, in: area.size, at: 0) {
-                switch style.kind {
-                case .rain:
-                    streak(in: context, from: drop.tail, to: drop.head, width: drop.width, color: colors.body.cgColor(alpha: drop.opacity))
-                case .snow:
-                    flake(in: context, at: drop.head, diameter: drop.width, colors: colors, alpha: drop.opacity)
-                }
-            }
+        layer.contentsGravity = .resize
+        layer.contents = image(size: CGSize(width: 1, height: 64), scale: 1) { context in
+            let colors = [color.cgColor(alpha: 0), color.cgColor(alpha: bottomOpacity)] as CFArray
+            guard let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) else { return }
+            context.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: 64), options: [])
         }
         return layer
     }
@@ -164,7 +192,7 @@ enum SkyLayerKit {
     }
 
     /// A transparent image `size` points across, drawn top-down by `draw`.
-    private static func image(size: CGSize, scale: CGFloat, draw: (CGContext) -> Void) -> CGImage? {
+    static func image(size: CGSize, scale: CGFloat, draw: (CGContext) -> Void) -> CGImage? {
         let pixelsWide = Int((size.width * scale).rounded(.up))
         let pixelsHigh = Int((size.height * scale).rounded(.up))
         guard pixelsWide > 0, pixelsHigh > 0, let context = CGContext(

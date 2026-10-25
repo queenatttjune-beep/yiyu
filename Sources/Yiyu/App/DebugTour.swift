@@ -176,6 +176,13 @@ struct DebugTour {
         check("放回右上角 restores the default spot", window.frame == home && PanelAnchorStore().anchor == nil)
     }
 
+    private func skyViews() -> [SkyHostView] {
+        func collect(_ view: NSView) -> [SkyHostView] {
+            ((view as? SkyHostView).map { [$0] } ?? []) + view.subviews.flatMap(collect)
+        }
+        return window.contentView.map(collect) ?? []
+    }
+
     private func dragHandles() -> [DragHandleView] {
         func collect(_ view: NSView) -> [DragHandleView] {
             ((view as? DragHandleView).map { [$0] } ?? []) + view.subviews.flatMap(collect)
@@ -277,7 +284,9 @@ struct DebugTour {
         let weather = weatherWindow.model
         let fade: Duration = .seconds(1.7)
         ui.tab = .today
-        check("drizzle outside paints drizzle on the panel", weather.scene == WeatherScene(rain: .faint, mist: .faint))
+        let drizzle = WeatherScene(rain: .faint, mist: .faint)
+        check("drizzle outside paints drizzle on the panel",
+              weather.scene == drizzle && skyViews().contains { $0.content?.surface == .panel && $0.content?.scene == drizzle })
         check("the badge names the weather outside",
               PanelBadge(todaySummary: "", dueReminders: 0, weather: weather.briefLine).hint.contains("杭州 小雨 20°"))
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -312,6 +321,9 @@ struct DebugTour {
         }
         appearanceWindow.model.select(Skin.default.id)
         panel.collapse()
+        await settle()
+        check("the badge's moon gate shows the weather",
+              skyViews().contains { $0.content?.surface == .gate && $0.content?.scene == weather.scene })
         for (name, code) in [("drizzle", "309")] + scenes.dropFirst() {
             weather.sceneOverride = WeatherScene(code: code)
             await settle()
