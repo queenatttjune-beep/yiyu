@@ -45,8 +45,12 @@ struct PanelActions {
     var hidePanel: @MainActor () -> Void
     var openDataFolder: @MainActor () -> Void
     var quit: @MainActor () -> Void
+    /// A drag of the panel ended; remember where it is now.
+    var panelDidMove: @MainActor () -> Void
+    var resetPosition: @MainActor () -> Void
 
     static let preview = PanelActions(
-        toggleCollapsed: {}, expand: {}, hidePanel: {}, openDataFolder: {}, quit: {}
+        toggleCollapsed: {}, expand: {}, hidePanel: {}, openDataFolder: {}, quit: {},
+        panelDidMove: {}, resetPosition: {}
     )
 }

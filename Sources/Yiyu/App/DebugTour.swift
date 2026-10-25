@@ -74,6 +74,68 @@ struct DebugTour {
         panel.expand(focus: false)
         await settle()
         check("expanding restores the panel", !ui.isCollapsed && window.frame.height > 300)
+
+        await runDragChecks()
+    }
+
+    /// Drives the drag handles through the same steps a mouse drag uses, without making the panel key.
+    private func runDragChecks() async {
+        panel.resetPosition()
+        await settle()
+        let home = window.frame
+        guard let header = dragHandles().first else {
+            check("the header has a drag handle", false)
+            return
+        }
+
+        header.beginDrag(at: CGPoint(x: 1000, y: 800))
+        header.continueDrag(to: CGPoint(x: 1002, y: 801))
+        header.endDrag()
+        check("a tiny movement does not move the panel", window.frame == home)
+
+        let start = CGPoint(x: home.midX, y: home.maxY - 20)
+        header.beginDrag(at: start)
+        header.continueDrag(to: CGPoint(x: start.x - 200, y: start.y - 60))
+        header.continueDrag(to: CGPoint(x: start.x - 400, y: start.y - 150))
+        header.endDrag()
+        await settle()
+        let moved = window.frame
+        check("dragging the header moves the panel with the pointer",
+              moved.origin == CGPoint(x: home.minX - 400, y: home.minY - 150))
+        check("the new position is saved", PanelAnchorStore().anchor == PanelPlacement.anchor(of: moved))
+        check("the panel never took the keyboard while dragging", !window.isKeyWindow)
+        await step("dragged")
+
+        panel.collapse()
+        await settle()
+        check("collapsing keeps the dragged top-right corner",
+              PanelPlacement.anchor(of: window.frame) == PanelPlacement.anchor(of: moved))
+        if let strip = dragHandles().first {
+            strip.beginDrag(at: CGPoint(x: 500, y: 500))
+            strip.endDrag()
+            await settle()
+            check("clicking the collapsed strip still expands it", !ui.isCollapsed)
+        } else {
+            check("the collapsed strip has a drag handle", false)
+        }
+
+        dragHandles().first?.beginDrag(at: start)
+        dragHandles().first?.continueDrag(to: CGPoint(x: -20000, y: -20000))
+        dragHandles().first?.endDrag()
+        await settle()
+        let screens = NSScreen.screens.map(\.visibleFrame)
+        check("a panel dragged off screen is pulled back on", screens.contains { $0.contains(window.frame) })
+
+        panel.resetPosition()
+        await settle()
+        check("放回右上角 restores the default spot", window.frame == home && PanelAnchorStore().anchor == nil)
+    }
+
+    private func dragHandles() -> [DragHandleView] {
+        func collect(_ view: NSView) -> [DragHandleView] {
+            ((view as? DragHandleView).map { [$0] } ?? []) + view.subviews.flatMap(collect)
+        }
+        return window.contentView.map(collect) ?? []
     }
 
     /// Runs against scripts/mock-ai-server.py when ui-tour.sh started it.

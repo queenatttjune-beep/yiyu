@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
+import YiyuCore
 
-/// Keeps the panel pinned to the top-right corner of the main screen and switches it
-/// between the full panel, the collapsed strip and hidden.
+/// Places the panel where the user last dragged it (the top-right corner of the main screen
+/// until then) and switches it between the full panel, the collapsed strip and hidden.
 @MainActor
 final class PanelController {
     private enum Layout {
@@ -14,6 +15,7 @@ final class PanelController {
 
     private let panel: FloatingPanel
     private let ui: PanelState
+    private let anchorStore = PanelAnchorStore()
     private var screenObserver: NSObjectProtocol?
 
     init(model: AppModel, ui: PanelState, dataFolder: URL, polisher: DiaryPolisher) {
@@ -25,7 +27,9 @@ final class PanelController {
             expand: { [weak self] in self?.expand(focus: true) },
             hidePanel: { [weak self] in self?.hide() },
             openDataFolder: { NSWorkspace.shared.open(dataFolder) },
-            quit: { NSApp.terminate(nil) }
+            quit: { NSApp.terminate(nil) },
+            panelDidMove: { [weak self] in self?.rememberPosition() },
+            resetPosition: { [weak self] in self?.resetPosition() }
         )
         let hostingView = FirstMouseHostingView(rootView: RootView(model: model, ui: ui, actions: actions).environment(polisher))
         hostingView.sizingOptions = []
@@ -45,6 +49,7 @@ final class PanelController {
 
     var isVisible: Bool { panel.isVisible }
     var isCollapsed: Bool { ui.isCollapsed }
+    var hasCustomPosition: Bool { anchorStore.anchor != nil }
 
     #if DEBUG
     var debugWindow: NSPanel { panel }
@@ -103,20 +108,29 @@ final class PanelController {
         }
     }
 
+    /// Called when a drag ends: keep the new spot, pulled back fully onto a screen.
+    func rememberPosition() {
+        anchorStore.anchor = PanelPlacement.anchor(of: panel.frame)
+        reposition()
+        anchorStore.anchor = PanelPlacement.anchor(of: panel.frame)
+    }
+
+    func resetPosition() {
+        anchorStore.anchor = nil
+        reposition()
+    }
+
     func reposition() {
-        guard let screen = NSScreen.screens.first else { return }
-        let visible = screen.visibleFrame
         let size = ui.isCollapsed
             ? Layout.collapsedSize
-            : CGSize(
-                width: Layout.expandedWidth,
-                height: min(Layout.expandedHeight, visible.height - Layout.screenMargin * 2)
-            )
-        let origin = CGPoint(
-            x: visible.maxX - size.width - Layout.screenMargin,
-            y: visible.maxY - size.height - Layout.screenMargin
+            : CGSize(width: Layout.expandedWidth, height: Layout.expandedHeight)
+        let frame = PanelPlacement.frame(
+            size: size,
+            anchor: anchorStore.anchor,
+            screens: NSScreen.screens.map(\.visibleFrame),
+            margin: Layout.screenMargin
         )
-        panel.setFrame(CGRect(origin: origin, size: size), display: true)
+        panel.setFrame(frame, display: true)
         panel.invalidateShadow()
     }
 }
