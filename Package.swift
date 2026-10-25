@@ -15,5 +15,6 @@ let package = Package(
             linkerSettings: [.linkedFramework("Carbon")]
         ),
         .testTarget(name: "YiyuCoreTests", dependencies: ["YiyuCore"]),
+        .testTarget(name: "YiyuTests", dependencies: ["Yiyu"]),
     ]
 )

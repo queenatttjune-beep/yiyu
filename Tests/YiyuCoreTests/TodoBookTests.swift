@@ -87,6 +87,27 @@ struct TodoBookTests {
         #expect(TodoBook.clearingCompleted(from: [open, done]) == [open])
     }
 
+    @Test func editingUpdatesTitleAndDateWithoutChangingIdentityOrCompletion() {
+        let original = todo("旧标题", planned: today, completedAt: now)
+        let other = todo("另一件事")
+        let tomorrow = today.adding(days: 1, calendar: calendar)
+        let edited = TodoBook.editing(original.id, title: " 新标题 \n", plannedDay: tomorrow, in: [original, other])
+        #expect(edited[0].title == "新标题")
+        #expect(edited[0].plannedDay == tomorrow)
+        #expect(edited[0].id == original.id)
+        #expect(edited[0].createdAt == original.createdAt)
+        #expect(edited[0].completedAt == original.completedAt)
+        #expect(edited[1] == other)
+        #expect(original.title == "旧标题")
+        #expect(TodoBook.editing(original.id, title: "新标题", plannedDay: nil, in: edited)[0].plannedDay == nil)
+    }
+
+    @Test func invalidEditsDoNotChangeTitleOrDate() {
+        let original = [todo("保留", planned: today)]
+        #expect(TodoBook.editing(original[0].id, title: " \n ", plannedDay: nil, in: original) == original)
+        #expect(TodoBook.editing(UUID(), title: "不存在", plannedDay: nil, in: original) == original)
+    }
+
     @Test func openListIsNewestFirstAndCompletedListIsRecentFirst() {
         let older = todo("older", createdAt: Fixtures.date(2026, 10, 20))
         let newer = todo("newer", createdAt: Fixtures.date(2026, 10, 24))
