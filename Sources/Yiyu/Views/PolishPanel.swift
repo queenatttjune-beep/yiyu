@@ -100,7 +100,7 @@ struct PolishPanel: View {
         case .done(let text):
             ScrollView {
                 Text(text)
-                    .font(Theme.serif(14.5))
+                    .font(Theme.diary(14.5))
                     .foregroundStyle(Theme.ink)
                     .lineSpacing(7)
                     .textSelection(.enabled)
@@ -153,7 +153,7 @@ private struct StyleChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
+                .font(Theme.text(12.5, weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(isSelected ? Theme.paper : (isOutlined ? Theme.gold : Theme.ink))
                 .padding(.horizontal, 11)
                 .padding(.vertical, 5)

@@ -25,6 +25,7 @@ struct DebugTour {
     let model: AppModel
     let ui: PanelState
     let polisher: DiaryPolisher
+    let appearanceWindow: AppearanceWindowController
 
     private var window: NSPanel { panel.debugWindow }
 
@@ -34,14 +35,19 @@ struct DebugTour {
 
     static var isRequested: Bool { requestedMode != nil }
 
-    static func runIfRequested(panel: PanelController, model: AppModel, ui: PanelState, polisher: DiaryPolisher) {
+    static func runIfRequested(
+        panel: PanelController, model: AppModel, ui: PanelState,
+        polisher: DiaryPolisher, appearanceWindow: AppearanceWindowController
+    ) {
         guard let mode = requestedMode else { return }
-        let tour = DebugTour(panel: panel, model: model, ui: ui, polisher: polisher)
+        let tour = DebugTour(panel: panel, model: model, ui: ui, polisher: polisher, appearanceWindow: appearanceWindow)
         Task {
             tour.log("WINDOW \(panel.debugWindow.windowNumber)")
             try? await Task.sleep(for: .seconds(1))
             switch mode {
-            case .gallery: await tour.runGallery()
+            case .gallery:
+                await tour.runGallery()
+                await tour.runSkins()
             case .interactive: await tour.runInteractive()
             }
             tour.log("DONE")
@@ -309,13 +315,105 @@ struct DebugTour {
         check("Esc collapses and gives the keyboard back", ui.isCollapsed && !window.isKeyWindow)
     }
 
+    /// Every built-in skin on the panel, an edit to one, and the 外观与皮肤 window, without taking the keyboard.
+    private func runSkins() async {
+        // It saves and switches skins, which must never touch the user's real settings.
+        guard let dataDirectory = ProcessInfo.processInfo.environment["YIYU_DATA_DIR"].map({ URL(fileURLWithPath: $0) }) else {
+            check("the skin tour runs on a throwaway data folder (YIYU_DATA_DIR)", false)
+            return
+        }
+        let appearance = appearanceWindow.model
+        ui.tab = .today
+        for skin in Skin.builtIns.dropFirst() {
+            appearance.select(skin.id)
+            await settle()
+            check("\(skin.name) gives the panel a \(skin.palette.isDark ? "dark" : "light") appearance",
+                  isDark(window) == skin.palette.isDark)
+            await step("skin-\(skin.id)")
+        }
+        ui.tab = .diary
+        await step("skin-diary")
+        ui.tab = .today
+        panel.collapse()
+        await settle()
+        await step("skin-badge")
+        panel.expand(focus: false)
+        await settle()
+
+        appearance.select(Skin.default.id)
+        appearance.setColor(ThemeColor(rgb: 0x7FB8A4), for: .accent)
+        let copy = appearance.selectedSkin
+        check("editing a built-in skin selects an edited copy",
+              !appearance.isSelectedBuiltIn && copy.name == "我的磁青泥金" && copy.palette.accent.rgb == 0x7FB8A4)
+        check("the built-in skin itself is unchanged", Skin.default.palette.accent.hex == "#C8A96A")
+        appearance.saveNow()
+        let saved = try? AppearanceStore(directory: dataDirectory).load().settings
+        check("the edited copy is saved to appearance.json", saved == appearance.settings)
+
+        appearanceWindow.show(activate: false)
+        await settle()
+        if let settingsWindow = appearanceWindow.debugWindow {
+            await step("appearance-window", window: settingsWindow)
+            appearance.select("xuanzhi")
+            await settle()
+            await step("appearance-window-light", window: settingsWindow)
+            check("opening the appearance window left the keyboard alone",
+                  !settingsWindow.isKeyWindow && !window.isKeyWindow)
+            await pickColorsTwice(in: settingsWindow)
+        } else {
+            check("the appearance window opens", false)
+        }
+        appearanceWindow.close()
+
+        for skin in appearance.customSkins {
+            appearance.delete(skin.id)
+        }
+        appearance.select(Skin.default.id)
+        await settle()
+        check("back on the default skin the panel is dark again", isDark(window) && appearance.customSkins.isEmpty)
+    }
+
+    /// Two picks in the accent colour well of a built-in skin: the first makes the copy,
+    /// the second must still reach it through the same well.
+    private func pickColorsTwice(in settingsWindow: NSWindow) async {
+        let appearance = appearanceWindow.model
+        let builtIn = appearance.selectedSkin
+        guard let well = colorWells(in: settingsWindow.contentView).first(where: { well in
+            well.color.usingColorSpace(.sRGB).map { ThemeColor(red: $0.redComponent, green: $0.greenComponent, blue: $0.blueComponent) }
+                == builtIn.palette.accent
+        }) else {
+            check("the accent colour well is on screen", false)
+            return
+        }
+        for rgb: UInt32 in [0x1F6E8C, 0x8C1F5A] {
+            let color = ThemeColor(rgb: rgb)
+            well.color = NSColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+            _ = well.sendAction(well.action, to: well.target)
+            await settle()
+        }
+        let copy = appearance.selectedSkin
+        check("a colour well keeps working after its first pick copies a built-in skin",
+              !appearance.isSelectedBuiltIn && copy.palette.accent.rgb == 0x8C1F5A
+                  && appearance.customSkins.count == 2 && well.window === settingsWindow)
+    }
+
+    private func colorWells(in view: NSView?) -> [NSColorWell] {
+        guard let view else { return [] }
+        return ((view as? NSColorWell).map { [$0] } ?? []) + view.subviews.flatMap(colorWells)
+    }
+
+    private func isDark(_ window: NSWindow) -> Bool {
+        window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    }
+
     // MARK: - Helpers
 
-    /// Pauses until `ui-tour.sh` has captured this step (it sets `YIYU_TOUR_SHOTS` to its
-    /// screenshot folder), so slow captures never show a later state.
-    private func step(_ name: String) async {
+    /// Logs `STEP <name>` (plus the window number when the shot is of a window other than the panel)
+    /// and pauses until `ui-tour.sh` has captured it (it sets `YIYU_TOUR_SHOTS` to its screenshot
+    /// folder), so slow captures never show a later state.
+    private func step(_ name: String, window shot: NSWindow? = nil) async {
         Self.stepsTaken += 1
-        log("STEP \(name)")
+        log("STEP \(name)" + (shot.map { " \($0.windowNumber)" } ?? ""))
         guard let folder = ProcessInfo.processInfo.environment["YIYU_TOUR_SHOTS"] else {
             try? await Task.sleep(for: Self.shotPause)
             return

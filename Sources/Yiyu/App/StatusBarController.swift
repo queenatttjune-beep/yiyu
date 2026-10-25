@@ -42,6 +42,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let login = addItem(to: menu, title: "登录时自动打开", action: #selector(toggleLoginItem))
         login.state = LoginItem.isEnabled ? .on : .off
         addItem(to: menu, title: "打开数据文件夹", action: #selector(openDataFolder))
+        let appearance = addItem(to: menu, title: "外观与皮肤…", action: #selector(showAppearanceSettings))
+        appearance.keyEquivalent = ","
         menu.addItem(.separator())
         let quit = addItem(to: menu, title: "退出一隅", action: #selector(quit))
         quit.keyEquivalent = "q"
@@ -88,6 +90,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func openDataFolder() {
         NSWorkspace.shared.open(dataFolder)
+    }
+
+    @objc private func showAppearanceSettings() {
+        AppearanceCommand.open()
     }
 
     @objc private func quit() {

@@ -30,21 +30,31 @@ struct CheckMark: View {
         Button {
             withAnimation(.easeOut(duration: 0.18)) { action() }
         } label: {
-            ZStack {
-                Circle()
-                    .strokeBorder(isOn ? tint : tint.opacity(0.6), lineWidth: 1.2)
-                if isOn {
-                    Circle().fill(tint)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 8, weight: .heavy))
-                        .foregroundStyle(Theme.paper)
-                }
-            }
-            .frame(width: 16, height: 16)
-            .contentShape(Circle())
+            CheckGlyph(isOn: isOn, tint: tint)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isOn ? "标记为未完成" : "标记为完成")
+    }
+}
+
+/// The circle `CheckMark` draws, without the button.
+struct CheckGlyph: View {
+    let isOn: Bool
+    var tint: Color = Theme.gold
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .strokeBorder(isOn ? tint : tint.opacity(0.6), lineWidth: 1.2)
+            if isOn {
+                Circle().fill(tint)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .heavy))
+                    .foregroundStyle(Theme.paper)
+            }
+        }
+        .frame(width: 16, height: 16)
     }
 }
 

@@ -92,7 +92,7 @@ struct DiaryPage: View {
                 get: { model.diaryText(for: day) },
                 set: { model.writeDiary($0, for: day) }
             ))
-            .font(Theme.serif(14.5))
+            .font(Theme.diary(14.5))
             .foregroundStyle(Theme.ink)
             .lineSpacing(7)
             .scrollContentBackground(.hidden)
@@ -104,7 +104,7 @@ struct DiaryPage: View {
 
             if text.isEmpty {
                 Text(isToday ? "今天过得怎么样？" : "这一天没有写日记。")
-                    .font(Theme.serif(14.5))
+                    .font(Theme.diary(14.5))
                     .foregroundStyle(Theme.inkFaint)
                     .padding(.leading, 5)
                     .allowsHitTesting(false)

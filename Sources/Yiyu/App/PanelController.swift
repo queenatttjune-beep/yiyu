@@ -138,4 +138,9 @@ final class PanelController {
         // The shadow follows the drawn shape, which SwiftUI redraws on the next pass.
         DispatchQueue.main.async { [panel] in panel.invalidateShadow() }
     }
+
+    /// Light skins need light context menus, date pickers and text cursors.
+    func applyAppearance(isDark: Bool) {
+        panel.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
+    }
 }

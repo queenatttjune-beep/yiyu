@@ -176,7 +176,7 @@ struct PanelButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(Theme.text(12.5, weight: .semibold))
                 .foregroundStyle(isPrimary ? Theme.paper : Theme.ink)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)

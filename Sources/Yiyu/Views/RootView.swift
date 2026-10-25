@@ -21,7 +21,7 @@ struct RootView: View {
                     )
             }
         }
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, Theme.colorScheme)
         .tint(Theme.gold)
     }
 }
@@ -92,6 +92,7 @@ private struct PanelHeader: View {
                     Button("隐藏面板", action: actions.hidePanel)
                     Button("放回右上角", action: actions.resetPosition)
                     Button("打开数据文件夹", action: actions.openDataFolder)
+                    Button("外观与皮肤…") { AppearanceCommand.open() }
                     Divider()
                     Button("退出一隅", action: actions.quit)
                 } label: {
@@ -125,7 +126,7 @@ private struct TabBar: View {
                     VStack(spacing: 5) {
                         HStack(spacing: 3) {
                             Text(tab.title)
-                                .font(.system(size: 13, weight: selection == tab ? .semibold : .regular))
+                                .font(Theme.text(13, weight: selection == tab ? .semibold : .regular))
                                 .foregroundStyle(selection == tab ? Theme.gold : Theme.inkMuted)
                             if tab == .reminders && hasDueReminders {
                                 Circle().fill(Theme.seal).frame(width: 5, height: 5)
