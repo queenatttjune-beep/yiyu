@@ -317,6 +317,11 @@ struct DebugTour {
 
     /// Every built-in skin on the panel, an edit to one, and the 外观与皮肤 window, without taking the keyboard.
     private func runSkins() async {
+        // It saves and switches skins, which must never touch the user's real settings.
+        guard let dataDirectory = ProcessInfo.processInfo.environment["YIYU_DATA_DIR"].map({ URL(fileURLWithPath: $0) }) else {
+            check("the skin tour runs on a throwaway data folder (YIYU_DATA_DIR)", false)
+            return
+        }
         let appearance = appearanceWindow.model
         ui.tab = .today
         for skin in Skin.builtIns.dropFirst() {
@@ -342,8 +347,7 @@ struct DebugTour {
               !appearance.isSelectedBuiltIn && copy.name == "我的磁青泥金" && copy.palette.accent.rgb == 0x7FB8A4)
         check("the built-in skin itself is unchanged", Skin.default.palette.accent.hex == "#C8A96A")
         appearance.saveNow()
-        let dataDirectory = ProcessInfo.processInfo.environment["YIYU_DATA_DIR"].map { URL(fileURLWithPath: $0) }
-        let saved = dataDirectory.flatMap { try? AppearanceStore(directory: $0).load().settings }
+        let saved = try? AppearanceStore(directory: dataDirectory).load().settings
         check("the edited copy is saved to appearance.json", saved == appearance.settings)
 
         appearanceWindow.show(activate: false)

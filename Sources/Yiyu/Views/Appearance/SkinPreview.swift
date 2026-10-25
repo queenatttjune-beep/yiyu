@@ -23,7 +23,7 @@ struct SkinPreview: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             tabs
-            InputField(text: .constant(""), placeholder: "写下今天要做的事，回车添加")
+            inputField
                 .padding(.horizontal, 10)
                 .padding(.bottom, 4)
             row("整理这周的照片")
@@ -90,9 +90,26 @@ struct SkinPreview: View {
         .padding(.bottom, 6)
     }
 
+    /// Drawn rather than a real `InputField`, so Tab never puts a caret in the preview.
+    private var inputField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "plus")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.gold)
+            Text("写下今天要做的事，回车添加")
+                .font(Theme.body)
+                .foregroundStyle(Theme.inkFaint)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.field))
+    }
+
     private func row(_ title: String, isDone: Bool = false, lateLabel: String? = nil) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            CheckMark(isOn: isDone) {}
+            CheckGlyph(isOn: isDone)
                 .padding(.top, 1)
             Text(title)
                 .font(Theme.body)

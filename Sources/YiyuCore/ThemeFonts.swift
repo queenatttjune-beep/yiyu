@@ -97,14 +97,18 @@ extension ThemeFonts: Codable {
         case display, body, diary, scale
     }
 
+    /// Missing or mistyped fields keep the default skin's value.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let fallback = Skin.default.fonts
+        func family(_ key: CodingKeys, _ defaultValue: String) -> String {
+            (try? container.decodeIfPresent(String.self, forKey: key)) ?? defaultValue
+        }
         self.init(
-            display: try container.decodeIfPresent(String.self, forKey: .display) ?? fallback.display,
-            body: try container.decodeIfPresent(String.self, forKey: .body) ?? fallback.body,
-            diary: try container.decodeIfPresent(String.self, forKey: .diary) ?? fallback.diary,
-            scale: try container.decodeIfPresent(Double.self, forKey: .scale) ?? fallback.scale
+            display: family(.display, fallback.display),
+            body: family(.body, fallback.body),
+            diary: family(.diary, fallback.diary),
+            scale: (try? container.decodeIfPresent(Double.self, forKey: .scale)) ?? fallback.scale
         )
     }
 

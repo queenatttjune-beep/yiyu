@@ -9,7 +9,12 @@ final class AppearanceModel {
     private static let saveDelay: Duration = .milliseconds(600)
 
     private(set) var settings: AppearanceSettings
-    private(set) var problem: String?
+    /// Kept apart from `settings` so views that only draw with the skin (the whole panel) are
+    /// not redrawn when a skin they don't show is renamed or deleted.
+    private(set) var selectedSkin: Skin
+    /// Why the saved skins could not be used this session; stays until the app quits.
+    private(set) var loadProblem: String?
+    private(set) var saveError: String?
 
     @ObservationIgnored private let store: AppearanceStore?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -18,10 +23,10 @@ final class AppearanceModel {
 
     init(settings: AppearanceSettings, store: AppearanceStore?) {
         self.settings = settings
+        self.selectedSkin = SkinBook.selected(settings)
         self.store = store
     }
 
-    var selectedSkin: Skin { SkinBook.selected(settings) }
     var isSelectedBuiltIn: Bool { SkinBook.isBuiltIn(selectedSkin.id) }
     var customSkins: [Skin] { settings.customSkins }
 
@@ -54,7 +59,7 @@ final class AppearanceModel {
     }
 
     func reportLoadProblem(_ message: String) {
-        problem = message
+        loadProblem = message
     }
 
     func saveNow() {
@@ -63,10 +68,10 @@ final class AppearanceModel {
         guard let store else { return }
         do {
             try store.save(settings)
-            problem = nil
+            saveError = nil
         } catch {
             NSLog("Yiyu: saving %@ failed: %@", store.fileURL.path, String(describing: error))
-            problem = "没能保存皮肤设置：\(error.localizedDescription)"
+            saveError = "没能保存皮肤设置：\(error.localizedDescription)"
         }
     }
 
@@ -77,13 +82,12 @@ final class AppearanceModel {
     private func update(_ transform: (AppearanceSettings) -> AppearanceSettings) {
         let next = transform(settings)
         guard next != settings else { return }
-        let previousSkin = selectedSkin
         settings = next
         scheduleSave()
-        let skin = selectedSkin
-        if skin != previousSkin {
-            onSkinChanged?(skin)
-        }
+        let skin = SkinBook.selected(next)
+        guard skin != selectedSkin else { return }
+        selectedSkin = skin
+        onSkinChanged?(skin)
     }
 
     private func scheduleSave() {

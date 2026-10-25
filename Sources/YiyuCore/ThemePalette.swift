@@ -104,12 +104,13 @@ public struct ThemePalette: Hashable, Sendable {
 }
 
 extension ThemePalette: Codable {
-    /// Roles missing from the file (written by an older version, or edited by hand) keep the default skin's colour.
+    /// Roles missing from the file (written by an older version) or mistyped by hand keep the
+    /// default skin's colour, so one bad value never costs the whole skin.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: ColorRole.self)
         var palette = Skin.default.palette
         for role in ColorRole.allCases {
-            if let color = try container.decodeIfPresent(ThemeColor.self, forKey: role) {
+            if let color = try? container.decodeIfPresent(ThemeColor.self, forKey: role) {
                 palette = palette.with(role, color)
             }
         }

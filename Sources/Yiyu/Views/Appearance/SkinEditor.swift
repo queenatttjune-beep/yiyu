@@ -16,6 +16,7 @@ struct SkinEditor: View {
             Section("配色") {
                 ForEach(ColorRole.allCases, id: \.self) { role in
                     ColorRow(role: role, color: skin.palette[role]) { model.setColor($0, for: role) }
+                        .id("\(skin.id)-\(role.rawValue)")
                 }
                 let hardToRead = skin.palette.hardToReadRoles
                 if !hardToRead.isEmpty {
@@ -30,6 +31,7 @@ struct SkinEditor: View {
             Section("字体") {
                 ForEach(FontRole.allCases, id: \.self) { role in
                     FontRow(role: role, family: skin.fonts[role]) { model.setFont($0, for: role) }
+                        .equatable()
                 }
                 Picker("字号", selection: Binding(
                     get: { TextSize(nearest: skin.fonts.scale) },
@@ -80,7 +82,9 @@ private struct SkinNameField: View {
                 .frame(width: 220)
                 .focused($isFocused)
                 .onAppear { draft = skin.name }
-                .onChange(of: draft) { _, text in onRename(text) }
+                .onChange(of: draft) { _, text in
+                    if text != skin.name { onRename(text) }
+                }
                 .onSubmit { draft = skin.name }
                 .onChange(of: isFocused) { _, focused in
                     if !focused { draft = skin.name }
@@ -113,46 +117,61 @@ private struct ColorRow: View {
     }
 }
 
-/// The colour as #RRGGBB, for typing or pasting an exact value. Anything else reverts on leaving the field.
+/// The colour as #RRGGBB, for typing or pasting an exact value. Only typed text is applied;
+/// anything that is not a colour reverts on leaving the field.
 private struct HexField: View {
     let color: ThemeColor
     let onCommit: (ThemeColor) -> Void
 
     @State private var draft = ""
+    @State private var isEdited = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        TextField("色值", text: $draft)
-            .labelsHidden()
-            .textFieldStyle(.roundedBorder)
-            .font(.body.monospacedDigit())
-            .frame(width: 84)
-            .focused($isFocused)
-            .onAppear { draft = color.hex }
-            .onChange(of: color) { _, newColor in
-                if !isFocused { draft = newColor.hex }
-            }
-            .onSubmit(commit)
-            .onChange(of: isFocused) { _, focused in
-                if !focused { commit() }
-            }
+        TextField("色值", text: Binding(get: { draft }, set: { text in
+            draft = text
+            isEdited = true
+        }))
+        .labelsHidden()
+        .textFieldStyle(.roundedBorder)
+        .font(.body.monospacedDigit())
+        .frame(width: 84)
+        .focused($isFocused)
+        .onAppear { draft = color.hex }
+        .onChange(of: color) { _, newColor in
+            draft = newColor.hex
+            isEdited = false
+        }
+        .onSubmit(commit)
+        .onChange(of: isFocused) { _, focused in
+            if !focused { commit() }
+        }
     }
 
     private func commit() {
+        guard isEdited else { return }
+        isEdited = false
         guard let parsed = ThemeColor(hex: draft) else {
             draft = color.hex
             return
         }
         draft = parsed.hex
-        onCommit(parsed)
+        if parsed != color {
+            onCommit(parsed)
+        }
     }
 }
 
 /// Chinese typefaces first under their Chinese names; every other installed family one level down.
-private struct FontRow: View {
+/// Equatable on what it shows, so dragging a colour does not rebuild three menus of 250 fonts.
+private struct FontRow: View, Equatable {
     let role: FontRole
     let family: String
     let onChange: (String) -> Void
+
+    nonisolated static func == (lhs: FontRow, rhs: FontRow) -> Bool {
+        lhs.role == rhs.role && lhs.family == rhs.family
+    }
 
     var body: some View {
         let selection = Binding(get: { family }, set: { onChange($0) })

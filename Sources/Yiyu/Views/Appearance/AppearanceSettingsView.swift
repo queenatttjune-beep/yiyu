@@ -9,7 +9,7 @@ struct AppearanceSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let problem = model.problem {
+            ForEach([model.loadProblem, model.saveError].compactMap { $0 }, id: \.self) { problem in
                 Label(problem, systemImage: "exclamationmark.triangle.fill")
                     .font(.callout)
                     .frame(maxWidth: .infinity, alignment: .leading)

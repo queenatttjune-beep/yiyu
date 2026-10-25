@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The 外观与皮肤 window. Built on first use and kept, so it reopens where it was left.
 @MainActor
-final class AppearanceWindowController {
+final class AppearanceWindowController: NSObject, NSWindowDelegate {
     private static let size = NSSize(width: 780, height: 680)
 
     let model: AppearanceModel
@@ -34,6 +34,14 @@ final class AppearanceWindowController {
         window?.close()
     }
 
+    /// The app only became active for this window. Staying active would leave an empty menu bar
+    /// and keep the keyboard from the app the user came from, even after the panel collapses.
+    func windowWillClose(_ notification: Notification) {
+        if NSApp.isActive {
+            NSApp.deactivate()
+        }
+    }
+
     private func makeWindow() -> NSWindow {
         let window = EditingWindow(
             contentRect: NSRect(origin: .zero, size: Self.size),
@@ -43,6 +51,7 @@ final class AppearanceWindowController {
         )
         window.title = "外观与皮肤"
         window.isReleasedWhenClosed = false
+        window.delegate = self
         window.contentView = NSHostingView(rootView: AppearanceSettingsView(model: model))
         window.center()
         return window

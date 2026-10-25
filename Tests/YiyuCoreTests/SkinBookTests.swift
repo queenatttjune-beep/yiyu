@@ -66,6 +66,24 @@ struct SkinBookTests {
         #expect(twice.customSkins.map(\.name) == ["我的磁青泥金", "我的磁青泥金 2"])
     }
 
+    @Test func copyNamesStayWithinTheLengthLimit() {
+        let long = String(repeating: "长", count: SkinBook.maxNameLength)
+        let base = AppearanceSettings(selectedSkinID: "a", customSkins: [custom("a", long)])
+        let once = SkinBook.duplicating("a", newID: "b", in: base)
+        let twice = SkinBook.duplicating("a", newID: "c", in: once)
+
+        let names = twice.customSkins.map(\.name)
+        #expect(names.allSatisfy { $0.count <= SkinBook.maxNameLength })
+        #expect(Set(names).count == names.count)
+        #expect(names[1].hasSuffix(" 2"))
+        #expect(names[2].hasSuffix(" 3"))
+    }
+
+    @Test func renamingToTheCurrentNameChangesNothing() {
+        let base = AppearanceSettings(selectedSkinID: "a", customSkins: [custom("a", "夜读")])
+        #expect(SkinBook.renaming("a", to: "夜读", in: base) == base)
+    }
+
     @Test func duplicatingSelectsTheCopy() {
         let base = AppearanceSettings(selectedSkinID: "a", customSkins: [custom("a", "夜读")])
         let settings = SkinBook.duplicating("a", newID: "b", in: base)

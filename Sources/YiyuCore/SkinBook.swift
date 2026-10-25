@@ -127,13 +127,19 @@ public enum SkinBook {
         isBuiltIn(skin.id) ? "我的\(skin.name)" : skin.name
     }
 
+    /// `base`, or `base 2`, `base 3`… if taken; shortened as needed to fit `maxNameLength`.
     private static func uniqueName(_ base: String, in settings: AppearanceSettings) -> String {
         let taken = Set(allSkins(settings).map(\.name))
-        guard taken.contains(base) else { return base }
+        let plain = String(base.prefix(maxNameLength))
+        guard taken.contains(plain) else { return plain }
         var number = 2
-        while taken.contains("\(base) \(number)") {
+        while true {
+            let suffix = " \(number)"
+            let candidate = String(base.prefix(maxNameLength - suffix.count)) + suffix
+            if !taken.contains(candidate) {
+                return candidate
+            }
             number += 1
         }
-        return "\(base) \(number)"
     }
 }

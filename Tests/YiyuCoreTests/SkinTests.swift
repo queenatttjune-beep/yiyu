@@ -96,6 +96,18 @@ struct SkinTests {
         #expect(palette.accent == Skin.default.palette.accent)
     }
 
+    @Test func malformedValuesFallBackOneByOne() throws {
+        let palette = try JSONDecoder().decode(
+            ThemePalette.self, from: Data(##"{"paper": "#FFFFFF", "ink": "black", "alert": 7}"##.utf8)
+        )
+        #expect(palette.paper == .white)
+        #expect(palette.ink == Skin.default.palette.ink)
+        #expect(palette.alert == Skin.default.palette.alert)
+
+        let fonts = try JSONDecoder().decode(ThemeFonts.self, from: Data(#"{"body": 3, "scale": "big"}"#.utf8))
+        #expect(fonts == Skin.default.fonts)
+    }
+
     @Test func fontsDecodingFillsMissingFieldsAndClampsScale() throws {
         let json = #"{"body": "Kaiti SC", "scale": 40}"#
         let fonts = try JSONDecoder().decode(ThemeFonts.self, from: Data(json.utf8))
