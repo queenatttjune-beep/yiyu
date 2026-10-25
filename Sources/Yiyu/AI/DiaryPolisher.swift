@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import YiyuCore
 
-/// Runs one polish at a time for the diary page and remembers the original text so a
+/// Runs one polish at a time for one diary day and remembers the original text so a
 /// replaced entry can be put back.
 @MainActor
 @Observable
@@ -20,9 +20,13 @@ final class DiaryPolisher {
         let polished: String
     }
 
+    private nonisolated static let keychainDeniedMessage =
+        "没能读取钥匙串里的密钥，可能是在系统弹窗里点了拒绝。再润色一次，弹窗出现时选「始终允许」。"
+
     let settings: AISettings
     private(set) var phase: Phase = .idle
-    private(set) var isOpen = false
+    /// The day the panel is polishing; results only ever go back into this day.
+    private(set) var targetDay: DayKey?
     var isShowingSettings = false
     var selectedStyleID = WritingStyle.builtIns[0].id
 
@@ -35,8 +39,11 @@ final class DiaryPolisher {
         self.session = session
     }
 
-    func open() {
-        isOpen = true
+    var isOpen: Bool { targetDay != nil }
+
+    func open(for day: DayKey) {
+        task?.cancel()
+        targetDay = day
         phase = .idle
         isShowingSettings = !settings.isReady
     }
@@ -44,48 +51,58 @@ final class DiaryPolisher {
     func close() {
         task?.cancel()
         task = nil
-        isOpen = false
+        targetDay = nil
         isShowingSettings = false
         phase = .idle
     }
 
     func polish(_ text: String, style: WritingStyle) {
         task?.cancel()
-        let request: URLRequest
-        do {
-            request = try PolishRequest.make(
-                endpoint: settings.endpoint, apiKey: try settings.apiKey(), text: text, style: style
-            )
-        } catch let error as PolishError {
-            phase = .failed(error.userMessage)
-            return
-        } catch {
-            phase = .failed("读不到钥匙串里的密钥：\(error.localizedDescription)")
+        guard DiaryBook.characterCount(text) > 0 else {
+            phase = .failed(PolishError.emptyDiary.userMessage)
             return
         }
-
+        let endpoint = settings.endpoint
+        let readKey = settings.keyReader()
         phase = .working
         task = Task { [session] in
-            let outcome: Phase
-            do {
-                let (data, response) = try await session.data(for: request)
-                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                outcome = .done(try PolishResponse.text(from: data, status: status))
-            } catch let error as PolishError {
-                outcome = .failed(error.userMessage)
-            } catch {
-                guard !Task.isCancelled else { return }
-                NSLog("Yiyu: polishing failed: %@", String(describing: error))
-                outcome = .failed(PolishError.network(error.localizedDescription).userMessage)
-            }
+            let outcome = await Self.run(endpoint: endpoint, readKey: readKey, text: text, style: style, session: session)
             guard !Task.isCancelled else { return }
             self.phase = outcome
         }
     }
 
-    /// Puts the polished text into the diary and keeps the original for undo.
-    func accept(into model: AppModel, day: DayKey) {
-        guard case .done(let polished) = phase else { return }
+    private nonisolated static func run(
+        endpoint: AIEndpoint,
+        readKey: @escaping @Sendable () throws -> String?,
+        text: String,
+        style: WritingStyle,
+        session: URLSession
+    ) async -> Phase {
+        let key: String?
+        do {
+            key = try await Task.detached(operation: readKey).value
+        } catch {
+            NSLog("Yiyu: reading the AI key from the keychain failed: %@", String(describing: error))
+            return .failed(keychainDeniedMessage)
+        }
+        do {
+            let request = try PolishRequest.make(endpoint: endpoint, apiKey: key, text: text, style: style)
+            let (data, response) = try await session.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            return .done(try PolishResponse.text(from: data, status: status))
+        } catch let error as PolishError {
+            return .failed(error.userMessage)
+        } catch {
+            let nsError = error as NSError
+            NSLog("Yiyu: polishing failed: %@ %ld", nsError.domain, nsError.code)
+            return .failed(PolishError.network(error.localizedDescription).userMessage)
+        }
+    }
+
+    /// Puts the polished text into the day it was made for and keeps the original for undo.
+    func accept(into model: AppModel) {
+        guard case .done(let polished) = phase, let day = targetDay else { return }
         lastReplacement = Replacement(day: day, original: model.diaryText(for: day), polished: polished)
         model.writeDiary(polished, for: day)
         close()

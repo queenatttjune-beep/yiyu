@@ -147,7 +147,7 @@ struct DebugTour {
         let today = model.today
         let original = model.diaryText(for: today)
 
-        polisher.open()
+        polisher.open(for: today)
         polisher.isShowingSettings = true
         await step("polish-settings")
         polisher.isShowingSettings = false
@@ -165,7 +165,7 @@ struct DebugTour {
         check("polishing sends the chosen style and strips <think>", polisher.phase == .done(expected))
         await step("polish-result")
 
-        polisher.accept(into: model, day: today)
+        polisher.accept(into: model)
         check("using the version replaces the entry", model.diaryText(for: today) == expected)
         check("undo is offered right after", polisher.canUndo(in: model, day: today))
         await step("polish-accepted")
@@ -173,9 +173,16 @@ struct DebugTour {
         polisher.undo(in: model, day: today)
         check("undo restores the original", model.diaryText(for: today) == original)
 
-        polisher.open()
+        polisher.open(for: today)
         polisher.polish("", style: poetic)
         check("an empty day explains itself", polisher.phase == .failed(PolishError.emptyDiary.userMessage))
+
+        polisher.polish(original, style: poetic)
+        ui.tab = .memos
+        await settle()
+        ui.tab = .diary
+        await settle()
+        check("a result stays with the day it was made for", polisher.targetDay == today)
         polisher.close()
     }
 

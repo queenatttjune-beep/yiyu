@@ -22,6 +22,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.path.endswith("/chat/completions"):
             self.send_error(404, "not found")
             return
+        user = re.sub(r"^<日记>\n|\n</日记>$", "", user)
         match = re.search(r"风格要求：(\S+?)：", system)
         style = match.group(1) if match else "未知"
         reply = {"choices": [{"message": {"role": "assistant",

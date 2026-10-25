@@ -26,13 +26,43 @@ struct PolishRequestTests {
         #expect(messages.map { $0["role"] } == ["system", "user"])
         #expect(messages[0]["content"]?.contains(poetic.instruction) == true)
         #expect(messages[0]["content"]?.contains("不要编造") == true)
-        #expect(messages[1]["content"] == "今天去公园了。")
+        #expect(messages[0]["content"]?.contains("不要回答") == true)
+        #expect(messages[1]["content"] == "<日记>\n今天去公园了。\n</日记>")
+    }
+
+    @Test func replyBudgetGrowsWithTheDiary() throws {
+        let short = try body(of: PolishRequest.make(endpoint: endpoint, apiKey: "k", text: "短", style: poetic))
+        let long = try body(of: PolishRequest.make(endpoint: endpoint, apiKey: "k", text: String(repeating: "长", count: 3000), style: poetic))
+        let shortBudget = try #require(short["max_tokens"] as? Int)
+        let longBudget = try #require(long["max_tokens"] as? Int)
+        #expect(shortBudget >= 2048)
+        #expect(longBudget > shortBudget)
+        #expect(longBudget <= 16384)
     }
 
     @Test func keepsAFullChatCompletionsAddress() throws {
         let full = AIEndpoint(baseURL: "https://example.com/v1/chat/completions", model: "m")
         let request = try PolishRequest.make(endpoint: full, apiKey: "k", text: "a", style: poetic)
         #expect(request.url?.absoluteString == "https://example.com/v1/chat/completions")
+    }
+
+    @Test func networkNeighboursCountAsLocal() {
+        #expect(AIEndpoint(baseURL: "http://192.168.1.20:11434/v1", model: "m").isLocal)
+        #expect(AIEndpoint(baseURL: "http://10.0.0.5:11434/v1", model: "m").isLocal)
+        #expect(AIEndpoint(baseURL: "http://172.20.1.1:11434/v1", model: "m").isLocal)
+        #expect(AIEndpoint(baseURL: "http://studio.local:11434/v1", model: "m").isLocal)
+        #expect(!AIEndpoint(baseURL: "http://172.40.1.1/v1", model: "m").isLocal)
+    }
+
+    @Test func plainHttpIsOnlyForLocalServers() {
+        #expect(AIEndpoint(baseURL: "http://api.example.com/v1", model: "m").isInsecureRemote)
+        #expect(!AIEndpoint(baseURL: "http://localhost:11434/v1", model: "m").isInsecureRemote)
+        #expect(!endpoint.isInsecureRemote)
+    }
+
+    @Test func keysBelongToAHost() {
+        #expect(endpoint.keyAccount == "api.deepseek.com")
+        #expect(AIEndpoint(baseURL: "https://API.OpenAI.com/v1", model: "m").keyAccount == "api.openai.com")
     }
 
     @Test func addressValidation() {
@@ -90,6 +120,20 @@ struct PolishResponseTests {
         #expect(try PolishResponse.text(from: reply("「秋风渐起。」"), status: 200) == "秋风渐起。")
     }
 
+    @Test func keepsQuotesThatBelongToDialogue() throws {
+        let dialogue = "“我回来了。”妈妈说，“吃饭吧。”"
+        #expect(try PolishResponse.text(from: reply(dialogue), status: 200) == dialogue)
+    }
+
+    @Test func cutOffRepliesAreErrors() {
+        let payload: [String: Any] = ["choices": [["message": ["content": "秋风渐起，我"], "finish_reason": "length"]]]
+        let data = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+        #expect(throws: PolishError.truncated) { try PolishResponse.text(from: data, status: 200) }
+        #expect(throws: PolishError.emptyReply) {
+            try PolishResponse.text(from: reply("<think>还在想，没想完"), status: 200)
+        }
+    }
+
     @Test func emptyOrMalformedRepliesAreErrors() {
         #expect(throws: PolishError.emptyReply) { try PolishResponse.text(from: reply("   "), status: 200) }
         #expect(throws: PolishError.unreadableReply) { try PolishResponse.text(from: Data("oops".utf8), status: 200) }
@@ -111,5 +155,6 @@ struct PolishResponseTests {
         #expect(PolishError.http(status: 429, message: nil).userMessage.contains("额度"))
         #expect(PolishError.http(status: 500, message: "boom").userMessage.contains("500"))
         #expect(PolishError.missingKey.userMessage.contains("密钥"))
+        #expect(PolishError.truncated.userMessage.contains("太长"))
     }
 }

@@ -22,8 +22,10 @@ struct AISettingsForm: View {
         AIPreset.all.first { $0.endpoint.baseURL == draft.baseURL }?.name ?? "自己填写"
     }
 
+    private var hasStoredKey: Bool { settings.hasKey(for: draft) }
+
     private var keyPlaceholder: String {
-        if settings.hasKey { return "已保存，不改就留空" }
+        if hasStoredKey { return "已为这个地址保存，不改就留空" }
         return draft.isLocal ? "本地模型可以不填" : "服务商给你的 API 密钥"
     }
 
@@ -74,8 +76,8 @@ struct AISettingsForm: View {
                         .buttonStyle(PanelButtonStyle(isPrimary: false))
                 }
                 Spacer()
-                if settings.hasKey {
-                    Button("删除已保存的密钥", action: deleteKey)
+                if hasStoredKey {
+                    Button("删除这个地址的密钥", action: deleteKey)
                         .buttonStyle(.plain)
                         .font(Theme.caption)
                         .foregroundStyle(Theme.inkMuted)
@@ -93,9 +95,11 @@ struct AISettingsForm: View {
         let typedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         if !endpoint.hasValidAddress {
             problem = PolishError.invalidAddress.userMessage
+        } else if endpoint.isInsecureRemote {
+            problem = "连接互联网上的服务要用 https:// 开头的地址；http:// 只适合本机或局域网里的模型。"
         } else if endpoint.model.isEmpty {
             problem = PolishError.missingModel.userMessage
-        } else if typedKey.isEmpty && !settings.hasKey && !endpoint.isLocal {
+        } else if typedKey.isEmpty && !settings.hasKey(for: endpoint) && !endpoint.isLocal {
             problem = PolishError.missingKey.userMessage
         } else {
             do {
@@ -111,7 +115,7 @@ struct AISettingsForm: View {
 
     private func deleteKey() {
         do {
-            try settings.deleteKey()
+            try settings.deleteKey(for: draft)
             problem = nil
         } catch {
             problem = "没能删除密钥：\(error.localizedDescription)"

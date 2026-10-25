@@ -125,7 +125,7 @@ struct PolishPanel: View {
     @ViewBuilder private var actions: some View {
         HStack(spacing: 8) {
             if case .done = polisher.phase {
-                Button("用这一版") { polisher.accept(into: model, day: day) }
+                Button("用这一版") { polisher.accept(into: model) }
                     .buttonStyle(PanelButtonStyle(isPrimary: true))
                 Button("再写一版") { polisher.polish(diaryText, style: selectedStyle) }
                     .buttonStyle(PanelButtonStyle(isPrimary: false))

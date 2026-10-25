@@ -20,11 +20,18 @@ struct DiaryPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             dayHeader
-            if polisher.isOpen {
+            if polisher.targetDay == day {
                 PolishPanel(model: model, day: day, polisher: polisher)
             } else {
                 editor
                 footer
+            }
+        }
+        .onAppear {
+            // Coming back to this page on another day (a new date, or after midnight)
+            // must not offer a result written for a different entry.
+            if polisher.isOpen && polisher.targetDay != day {
+                polisher.close()
             }
         }
         .onChange(of: day) {
@@ -61,7 +68,7 @@ struct DiaryPage: View {
                         .foregroundStyle(Theme.inkMuted)
                         .help("换回润色前的原文")
                 }
-                Button(action: polisher.open) {
+                Button { polisher.open(for: day) } label: {
                     Label("润色", systemImage: "wand.and.stars")
                         .font(Theme.caption.weight(.semibold))
                         .foregroundStyle(Theme.gold)
