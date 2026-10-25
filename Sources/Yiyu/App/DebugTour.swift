@@ -24,6 +24,7 @@ struct DebugTour {
     let panel: PanelController
     let model: AppModel
     let ui: PanelState
+    let polisher: DiaryPolisher
     let appearanceWindow: AppearanceWindowController
 
     private var window: NSPanel { panel.debugWindow }
@@ -34,9 +35,12 @@ struct DebugTour {
 
     static var isRequested: Bool { requestedMode != nil }
 
-    static func runIfRequested(panel: PanelController, model: AppModel, ui: PanelState, appearanceWindow: AppearanceWindowController) {
+    static func runIfRequested(
+        panel: PanelController, model: AppModel, ui: PanelState,
+        polisher: DiaryPolisher, appearanceWindow: AppearanceWindowController
+    ) {
         guard let mode = requestedMode else { return }
-        let tour = DebugTour(panel: panel, model: model, ui: ui, appearanceWindow: appearanceWindow)
+        let tour = DebugTour(panel: panel, model: model, ui: ui, polisher: polisher, appearanceWindow: appearanceWindow)
         Task {
             tour.log("WINDOW \(panel.debugWindow.windowNumber)")
             try? await Task.sleep(for: .seconds(1))
@@ -68,6 +72,7 @@ struct DebugTour {
 
         ui.tab = .diary
         await step("diary")
+        await polishTour()
 
         model.addReminder("一隅提醒测试", at: Date().addingTimeInterval(1), repeatRule: .none)
         try? await Task.sleep(for: .seconds(2))
@@ -166,6 +171,54 @@ struct DebugTour {
             ((view as? DragHandleView).map { [$0] } ?? []) + view.subviews.flatMap(collect)
         }
         return window.contentView.map(collect) ?? []
+    }
+
+    /// Runs against scripts/mock-ai-server.py when ui-tour.sh started it.
+    private func polishTour() async {
+        guard ProcessInfo.processInfo.environment["YIYU_TOUR_AI_URL"] != nil else {
+            log("SKIP polish checks: no mock AI server")
+            return
+        }
+        let today = model.today
+        let original = model.diaryText(for: today)
+
+        polisher.open(for: today)
+        polisher.isShowingSettings = true
+        await step("polish-settings")
+        polisher.isShowingSettings = false
+
+        model.addStyle(name: "第三人称", instruction: "改成第三人称叙述")
+        let poetic = WritingStyle.builtIns[1]
+        polisher.selectedStyleID = poetic.id
+        await step("polish-styles")
+
+        polisher.polish(original, style: poetic)
+        for _ in 0..<50 where polisher.phase == .working {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        let expected = "诗意风格：\(original.trimmingCharacters(in: .whitespacesAndNewlines))"
+        check("polishing sends the chosen style and strips <think>", polisher.phase == .done(expected))
+        await step("polish-result")
+
+        polisher.accept(into: model)
+        check("using the version replaces the entry", model.diaryText(for: today) == expected)
+        check("undo is offered right after", polisher.canUndo(in: model, day: today))
+        await step("polish-accepted")
+
+        polisher.undo(in: model, day: today)
+        check("undo restores the original", model.diaryText(for: today) == original)
+
+        polisher.open(for: today)
+        polisher.polish("", style: poetic)
+        check("an empty day explains itself", polisher.phase == .failed(PolishError.emptyDiary.userMessage))
+
+        polisher.polish(original, style: poetic)
+        ui.tab = .memos
+        await settle()
+        ui.tab = .diary
+        await settle()
+        check("a result stays with the day it was made for", polisher.targetDay == today)
+        polisher.close()
     }
 
     /// A believable week of data around `now`, used when the tour starts from an empty folder.

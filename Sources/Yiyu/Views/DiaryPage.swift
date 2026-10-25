@@ -12,6 +12,7 @@ struct DiaryPage: View {
     /// The day being typed into; holds still if midnight passes mid-sentence.
     @State private var editingDay: DayKey?
     @FocusState private var isEditorFocused: Bool
+    @Environment(DiaryPolisher.self) private var polisher
 
     private var day: DayKey { pickedDay ?? editingDay ?? model.today }
     private var isToday: Bool { day == model.today }
@@ -19,8 +20,22 @@ struct DiaryPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             dayHeader
-            editor
-            footer
+            if polisher.targetDay == day {
+                PolishPanel(model: model, day: day, polisher: polisher)
+            } else {
+                editor
+                footer
+            }
+        }
+        .onAppear {
+            // Coming back to this page on another day (a new date, or after midnight)
+            // must not offer a result written for a different entry.
+            if polisher.isOpen && polisher.targetDay != day {
+                polisher.close()
+            }
+        }
+        .onChange(of: day) {
+            polisher.close()
         }
     }
 
@@ -44,6 +59,26 @@ struct DiaryPage: View {
                     .buttonStyle(.plain)
                     .font(Theme.caption.weight(.semibold))
                     .foregroundStyle(Theme.gold)
+            }
+            if !polisher.isOpen {
+                if polisher.canUndo(in: model, day: day) {
+                    Button("撤销润色") { polisher.undo(in: model, day: day) }
+                        .buttonStyle(.plain)
+                        .font(Theme.caption)
+                        .foregroundStyle(Theme.inkMuted)
+                        .help("换回润色前的原文")
+                }
+                Button { polisher.open(for: day) } label: {
+                    Label("润色", systemImage: "wand.and.stars")
+                        .font(Theme.caption.weight(.semibold))
+                        .foregroundStyle(Theme.gold)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .overlay(Capsule().strokeBorder(Theme.goldFaint, lineWidth: 1))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("用 AI 把这一天的日记润色成你喜欢的风格")
             }
         }
         .padding(.horizontal, 8)

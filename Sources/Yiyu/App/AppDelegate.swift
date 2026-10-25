@@ -38,7 +38,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Theme.appearance = appearance
 
         let ui = PanelState()
-        let panel = PanelController(model: model, ui: ui, dataFolder: store.directory)
+        let polisher = DiaryPolisher(settings: AISettings())
+        let panel = PanelController(model: model, ui: ui, dataFolder: store.directory, polisher: polisher)
         panel.applyAppearance(isDark: appearance.selectedSkin.palette.isDark)
         appearance.onSkinChanged = { [weak panel] skin in panel?.applyAppearance(isDark: skin.palette.isDark) }
         let appearanceWindow = AppearanceWindowController(model: appearance)
@@ -69,7 +70,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             LoginItem.enableOnFirstLaunch()
         }
         #if DEBUG
-        DebugTour.runIfRequested(panel: panel, model: model, ui: ui, appearanceWindow: appearanceWindow)
+        DebugTour.runIfRequested(
+            panel: panel, model: model, ui: ui, polisher: polisher, appearanceWindow: appearanceWindow
+        )
         #endif
     }
 

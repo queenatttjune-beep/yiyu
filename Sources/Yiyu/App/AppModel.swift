@@ -177,6 +177,18 @@ final class AppModel {
 
     var diaryDays: Set<DayKey> { DiaryBook.writtenDays(in: data.diary) }
 
+    // MARK: - Writing styles
+
+    var writingStyles: [WritingStyle] { WritingStyle.all(custom: data.customStyles) }
+
+    func addStyle(name: String, instruction: String) {
+        update { $0.with(customStyles: StyleBook.adding(name: name, instruction: instruction, to: $0.customStyles)) }
+    }
+
+    func removeStyle(_ id: String) {
+        update { $0.with(customStyles: StyleBook.removing(id, from: $0.customStyles)) }
+    }
+
     // MARK: - Clock
 
     /// Called every few seconds: advances "now", reports reminders that just went off
@@ -248,14 +260,16 @@ extension AppData {
         todos: [Todo]? = nil,
         reminders: [Reminder]? = nil,
         memos: [Memo]? = nil,
-        diary: [DiaryEntry]? = nil
+        diary: [DiaryEntry]? = nil,
+        customStyles: [WritingStyle]? = nil
     ) -> AppData {
         AppData(
             version: version,
             todos: todos ?? self.todos,
             reminders: reminders ?? self.reminders,
             memos: memos ?? self.memos,
-            diary: diary ?? self.diary
+            diary: diary ?? self.diary,
+            customStyles: customStyles ?? self.customStyles
         )
     }
 }

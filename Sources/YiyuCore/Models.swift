@@ -115,23 +115,27 @@ public struct AppData: Codable, Equatable, Sendable {
     public var reminders: [Reminder]
     public var memos: [Memo]
     public var diary: [DiaryEntry]
+    /// Writing styles the user added for AI polishing.
+    public var customStyles: [WritingStyle]
 
     public init(
         version: Int = AppData.currentVersion,
         todos: [Todo] = [],
         reminders: [Reminder] = [],
         memos: [Memo] = [],
-        diary: [DiaryEntry] = []
+        diary: [DiaryEntry] = [],
+        customStyles: [WritingStyle] = []
     ) {
         self.version = version
         self.todos = todos
         self.reminders = reminders
         self.memos = memos
         self.diary = diary
+        self.customStyles = customStyles
     }
 
     private enum CodingKeys: String, CodingKey {
-        case version, todos, reminders, memos, diary
+        case version, todos, reminders, memos, diary, customStyles
     }
 
     public init(from decoder: Decoder) throws {
@@ -141,5 +145,6 @@ public struct AppData: Codable, Equatable, Sendable {
         reminders = try container.decodeIfPresent([Reminder].self, forKey: .reminders) ?? []
         memos = try container.decodeIfPresent([Memo].self, forKey: .memos) ?? []
         diary = try container.decodeIfPresent([DiaryEntry].self, forKey: .diary) ?? []
+        customStyles = try container.decodeIfPresent([WritingStyle].self, forKey: .customStyles) ?? []
     }
 }
