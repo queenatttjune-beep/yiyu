@@ -379,6 +379,8 @@ struct DebugTour {
             return
         }
         panel.toggleFromHotKey()
+        // Sample entries have 08:30 timestamps, which sort ahead of a new task just after midnight.
+        for todo in model.data.todos { model.deleteTodo(todo.id) }
         model.addTodo("编辑待办测试", forToday: true)
         await settle()
         click(x: 90, y: 163)
@@ -440,6 +442,29 @@ struct DebugTour {
         check("both UI edits survive reloading data.json",
               saved?.todos.contains { $0.title == "修改后的待办" } == true
                   && saved?.reminders.first?.title == "修改后的提醒")
+
+        ui.tab = .today
+        await settle()
+        click(x: 90, y: 123)
+        await settle()
+        insert("把明天的周报写了")
+        check("the to-do composer receives spoken input", currentFieldText() == "把明天的周报写了")
+        await step("todo-understanding-preview")
+        let before = model.data.todos.count
+        submit()
+        await settle()
+        let planned = model.data.todos.first { $0.title == "写周报" }
+        check("spoken input adds exactly one task named 写周报", model.data.todos.count == before + 1 && planned != nil)
+        check("the explicit tomorrow date overrides the today page",
+              planned?.plannedDay == model.today.adding(days: 1, calendar: model.calendar)
+                  && !model.todayTodos.contains { $0.id == planned?.id })
+        await step("todo-understanding-saved")
+        ui.tab = .backlog
+        await step("tomorrow-todo")
+        model.saveNow()
+        let reloaded = try? DataStore(directory: URL(fileURLWithPath: folder)).load().data
+        check("the recognized task date survives reloading",
+              planned != nil && reloaded?.todos.first { $0.id == planned?.id }?.plannedDay == planned?.plannedDay)
         panel.collapse()
     }
 
@@ -578,7 +603,8 @@ struct DebugTour {
                 timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
                 context: nil, eventNumber: 0, clickCount: count, pressure: type == .leftMouseDown ? 1 : 0
             ) else { continue }
-            NSApp.sendEvent(event)
+            // Native text fields track until mouse-up; enqueue both events before the run loop handles mouse-down.
+            NSApp.postEvent(event, atStart: false)
         }
     }
 
