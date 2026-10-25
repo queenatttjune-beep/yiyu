@@ -40,7 +40,7 @@ for _ in $(seq 1 50); do
 done
 [ -n "$mock_port" ] || { echo "The mock AI server did not start; see $OUT/mock-ai.log"; kill "$MOCK_PID"; exit 1; }
 
-YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" YIYU_TOUR_AI_URL="http://127.0.0.1:$mock_port/v1" \
+YIYU_DATA_DIR="$PWD/$OUT/data" YIYU_TOUR="$MODE" YIYU_TOUR_SHOTS="$PWD/$OUT" YIYU_TOUR_AI_URL="http://127.0.0.1:$mock_port/v1" \
   "$BUNDLE/Contents/MacOS/Yiyu" >"$LOG" 2>&1 &
 APP_PID=$!
 trap 'kill "$APP_PID" "$MOCK_PID" 2>/dev/null || true' EXIT
@@ -56,7 +56,8 @@ while [ $SECONDS -lt $deadline ]; do
     seen=$((seen + 1))
     name="$(grep '^TOUR STEP ' "$LOG" | sed -n "${seen}p" | cut -d' ' -f3)"
     sleep 0.5
-    screencapture -x -o -l "$window" "$OUT/$(printf '%02d' "$seen")-$name.png"
+    shot="$OUT/$(printf '%02d' "$seen")-$name.png"
+    screencapture -x -o -l "$window" "$shot.tmp" && mv "$shot.tmp" "$shot"
   done
   grep -q '^TOUR DONE' "$LOG" && break
 done
