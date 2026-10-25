@@ -15,8 +15,7 @@ struct SkinEditor: View {
             }
             Section("配色") {
                 ForEach(ColorRole.allCases, id: \.self) { role in
-                    ColorRow(role: role, color: skin.palette[role]) { model.setColor($0, for: role) }
-                        .id("\(skin.id)-\(role.rawValue)")
+                    ColorRow(role: role, color: skin.palette[role], skinID: skin.id) { model.setColor($0, for: role) }
                 }
                 let hardToRead = skin.palette.hardToReadRoles
                 if !hardToRead.isEmpty {
@@ -96,12 +95,16 @@ private struct SkinNameField: View {
 private struct ColorRow: View {
     let role: ColorRole
     let color: ThemeColor
+    let skinID: String
     let onChange: (ThemeColor) -> Void
 
     var body: some View {
         LabeledContent {
             HStack(spacing: 10) {
+                // A fresh field per skin drops half-typed text when another skin is picked. The colour
+                // well keeps its identity: the colour panel stays wired to it while a built-in is copied.
                 HexField(color: color, onCommit: onChange)
+                    .id(skinID)
                 ColorPicker(role.label, selection: Binding(
                     get: { Color(color) },
                     set: { picked in

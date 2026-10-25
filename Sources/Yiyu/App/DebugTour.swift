@@ -359,15 +359,47 @@ struct DebugTour {
             await step("appearance-window-light", window: settingsWindow)
             check("opening the appearance window left the keyboard alone",
                   !settingsWindow.isKeyWindow && !window.isKeyWindow)
+            await pickColorsTwice(in: settingsWindow)
         } else {
             check("the appearance window opens", false)
         }
         appearanceWindow.close()
 
-        appearance.delete(copy.id)
+        for skin in appearance.customSkins {
+            appearance.delete(skin.id)
+        }
         appearance.select(Skin.default.id)
         await settle()
         check("back on the default skin the panel is dark again", isDark(window) && appearance.customSkins.isEmpty)
+    }
+
+    /// Two picks in the accent colour well of a built-in skin: the first makes the copy,
+    /// the second must still reach it through the same well.
+    private func pickColorsTwice(in settingsWindow: NSWindow) async {
+        let appearance = appearanceWindow.model
+        let builtIn = appearance.selectedSkin
+        guard let well = colorWells(in: settingsWindow.contentView).first(where: { well in
+            well.color.usingColorSpace(.sRGB).map { ThemeColor(red: $0.redComponent, green: $0.greenComponent, blue: $0.blueComponent) }
+                == builtIn.palette.accent
+        }) else {
+            check("the accent colour well is on screen", false)
+            return
+        }
+        for rgb: UInt32 in [0x1F6E8C, 0x8C1F5A] {
+            let color = ThemeColor(rgb: rgb)
+            well.color = NSColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: 1)
+            _ = well.sendAction(well.action, to: well.target)
+            await settle()
+        }
+        let copy = appearance.selectedSkin
+        check("a colour well keeps working after its first pick copies a built-in skin",
+              !appearance.isSelectedBuiltIn && copy.palette.accent.rgb == 0x8C1F5A
+                  && appearance.customSkins.count == 2 && well.window === settingsWindow)
+    }
+
+    private func colorWells(in view: NSView?) -> [NSColorWell] {
+        guard let view else { return [] }
+        return ((view as? NSColorWell).map { [$0] } ?? []) + view.subviews.flatMap(colorWells)
     }
 
     private func isDark(_ window: NSWindow) -> Bool {
