@@ -18,6 +18,7 @@ final class AppModel {
     let calendar: Calendar
     let labels: Labels
     let parser: QuickTimeParser
+    let todoParser: TodoInputParser
 
     @ObservationIgnored private let store: DataStore?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -31,6 +32,7 @@ final class AppModel {
         self.calendar = calendar
         self.labels = Labels(calendar: calendar)
         self.parser = QuickTimeParser(calendar: calendar)
+        self.todoParser = TodoInputParser(calendar: calendar)
         self.now = now
         self.lastReminderCheck = now
     }
@@ -48,9 +50,14 @@ final class AppModel {
         Labels.todaySummary(remaining: remainingToday, total: todayTodos.count)
     }
 
-    func addTodo(_ title: String, forToday: Bool) {
-        let day = forToday ? today : nil
-        update { $0.with(todos: TodoBook.adding(title, plannedDay: day, to: $0.todos, now: Date())) }
+    @discardableResult
+    func addTodo(_ input: String, forToday: Bool, now: Date = Date()) -> Todo? {
+        let parsed = todoParser.parse(input, now: now)
+        guard parsed.unresolvedDate == nil, !parsed.title.isEmpty else { return nil }
+        let day = parsed.plannedDay ?? (forToday ? DayKey(now, calendar: calendar) : nil)
+        let id = UUID()
+        update { $0.with(todos: TodoBook.adding(parsed.title, plannedDay: day, to: $0.todos, now: now, id: id)) }
+        return data.todos.first { $0.id == id }
     }
 
     func toggleTodo(_ id: UUID) {
