@@ -1,0 +1,37 @@
+{
+  "base": "Edit this botanical silhouette. Preserve the flower species, the recognizable blossom contour, the single warm ivory silhouette color, and the refined organic paper-cut style of the reference. Change its COMPOSITION and STEMS so it reads as a plant growing diagonally from outside a round garden window into its opening. IMPORTANT: do NOT draw a window, circle, frame, wall, scenery, shadows, text, labels or background; the app draws the window separately behind this plant. Use a truly transparent background. Imaginary composition guide: square canvas; imaginary window centered at (50%,50%) with radius 36% of canvas. The long visible branch enters from the OUTSIDE LOWER LEFT, with its pointed cut-off root at approximately (9%,86%). It sweeps diagonally up and right to a blossom near (68%,30%). The main blossom occupies about 34% of the canvas width. A small leaf or secondary branch near (26%,63%) crosses the imaginary window's lower-left rim and remains in the foreground. Some of the plant must visibly lie OUTSIDE the imaginary circle, with the stem crossing its lower-left rim. The cut-off root must be the lowest LEFTMOST endpoint, never under the center of the flower. Keep empty space in the upper left of the imaginary window. Avoid a self-contained upright potted-plant silhouette, a stem ending at bottom center, a circled logo composition, mirrored symmetry, extra decorative details, textures, gradients, outlines and stray speckles. Broad clean negative gaps and gently tapering stem, readable at 52 pixels. The whole plant must fit within the square canvas margins. Specific subject notes: ",
+  "notes": [
+    [
+      "lotus",
+      "Keep the chosen reference A lotus blossom's five broad asymmetrical overlapping petals and low folded front petal. Keep its one softly cupped lotus leaf. Recompose these on the diagonal branch entering from the far lower left, with the leaf near the entry point. The flower is a foreground lotus leaning into a window, not centered in an emblem."
+    ],
+    [
+      "plum",
+      "Keep two five-petalled plum blossoms, a bare gently crooked branch and one bud. The bare branch starts far lower left outside the opening and carries the blossoms into the upper-right opening. No leaves."
+    ],
+    [
+      "magnolia",
+      "Keep one magnolia blossom with three thick cupping petals and one small leaf. Its long gently arched branch enters from the lower-left outside, blossom leans up into the upper-right opening."
+    ],
+    [
+      "crabapple",
+      "Keep two nodding crabapple blooms and two small leaves. A long slender branch from the outside lower left brings these blossoms into the upper-right opening; one leaf crosses the rim near the entrance."
+    ],
+    [
+      "gardenia",
+      "Keep the six broad softly spiraling gardenia petals and two leaves. Use a diagonal naturally bowed stem arriving from far lower left outside the window, with one leaf near the crossing and the flower upper right."
+    ],
+    [
+      "osmanthus",
+      "Keep the small four-lobed osmanthus flower clusters and two lanceolate leaves. The twig begins outside at far lower left, then runs diagonally toward the upper right; clusters inside the opening, a leaf outside the opening near the rim."
+    ],
+    [
+      "chrysanthemum",
+      "Keep the open chrysanthemum's unequal curved ribbon-like petals and one lobed leaf, but simplify to about ten major petals. The long diagonal stem enters from far lower left outside the opening, leaf crosses the rim, flower upper right."
+    ],
+    [
+      "camellia",
+      "Keep one rounded layered camellia flower and two pointed oval leaves. The branch comes from outside the far lower left, carrying the flower into the upper-right opening. One leaf is in front of the rim near the entrance."
+    ]
+  ]
+}

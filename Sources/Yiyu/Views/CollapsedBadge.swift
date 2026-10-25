@@ -11,6 +11,8 @@ struct CollapsedBadge: View {
 
     @State private var isHovering = false
     @State private var isHopping = false
+    @State private var breeze = 0.0
+    @Environment(WeatherModel.self) private var weather
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var badge: PanelBadge {
@@ -18,11 +20,13 @@ struct CollapsedBadge: View {
     }
 
     var body: some View {
+        let garden = weather.garden
+        let hint = "\(garden.description)\n\(badge.hint)"
         ZStack(alignment: .topTrailing) {
             Circle()
                 .fill(Theme.paper)
                 .overlay(Circle().strokeBorder(Theme.goldFaint, lineWidth: 0.8))
-                .overlay(MoonGateMark().padding(2))
+                .overlay(MoonGateMark(scene: garden, breeze: reduceMotion ? 0 : breeze).padding(2))
             if badge.needsAttention {
                 Circle()
                     .fill(Theme.seal)
@@ -35,13 +39,23 @@ struct CollapsedBadge: View {
         .scaleEffect(isHopping ? 1.12 : 1, anchor: .bottom)
         .opacity(isHovering || badge.needsAttention ? 1 : Self.idleOpacity)
         .animation(.easeOut(duration: 0.15), value: isHovering)
-        .overlay(WindowDragArea(hint: badge.hint, onClick: onExpand, onDragEnd: onDragEnd))
+        .overlay(WindowDragArea(hint: hint, onClick: onExpand, onDragEnd: onDragEnd))
         .onHover { isHovering = $0 }
+        .task(id: isHovering && garden.isWindy && !reduceMotion) {
+            guard isHovering && garden.isWindy && !reduceMotion else {
+                breeze = 0
+                return
+            }
+            withAnimation(.easeInOut(duration: 0.65)) { breeze = 1 }
+            try? await Task.sleep(for: .milliseconds(650))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.9)) { breeze = 0 }
+        }
         .onChange(of: model.firedReminders.count) { old, new in
             if new > old { hop() }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(badge.hint)
+        .accessibilityLabel(hint)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "展开") { onExpand() }
     }

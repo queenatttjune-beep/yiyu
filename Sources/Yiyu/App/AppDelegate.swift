@@ -68,7 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.panel = panel
         self.notifier = notifier
         self.hotKey = hotKey
-        self.statusBar = StatusBarController(panel: panel, dataFolder: store.directory, isHotKeyAvailable: hotKey != nil)
+        let statusBar = StatusBarController(
+            panel: panel, dataFolder: store.directory, isHotKeyAvailable: hotKey != nil, weather: weather
+        )
+        self.statusBar = statusBar
 
         model.tick()
         model.pruneEmptyMemos(keeping: nil)
@@ -83,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         DebugTour.runIfRequested(
             panel: panel, model: model, ui: ui, polisher: polisher, appearanceWindow: appearanceWindow,
-            weatherWindow: weatherWindow
+            weatherWindow: weatherWindow, statusBar: statusBar
         )
         #endif
     }

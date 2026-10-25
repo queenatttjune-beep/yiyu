@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import SwiftUI
 import YiyuCore
 
 /// UI smoke test for debug builds, printing `STEP <name>` before each pause so
@@ -14,6 +15,7 @@ struct DebugTour {
         case gallery
         case interactive
         case editing
+        case garden
     }
 
     private static let settle: Duration = .milliseconds(450)
@@ -28,6 +30,7 @@ struct DebugTour {
     let polisher: DiaryPolisher
     let appearanceWindow: AppearanceWindowController
     let weatherWindow: WeatherWindowController
+    let statusBar: StatusBarController
 
     private var window: NSPanel { panel.debugWindow }
 
@@ -39,12 +42,13 @@ struct DebugTour {
 
     static func runIfRequested(
         panel: PanelController, model: AppModel, ui: PanelState,
-        polisher: DiaryPolisher, appearanceWindow: AppearanceWindowController, weatherWindow: WeatherWindowController
+        polisher: DiaryPolisher, appearanceWindow: AppearanceWindowController, weatherWindow: WeatherWindowController,
+        statusBar: StatusBarController
     ) {
         guard let mode = requestedMode else { return }
         let tour = DebugTour(
             panel: panel, model: model, ui: ui, polisher: polisher,
-            appearanceWindow: appearanceWindow, weatherWindow: weatherWindow
+            appearanceWindow: appearanceWindow, weatherWindow: weatherWindow, statusBar: statusBar
         )
         Task {
             tour.log("WINDOW \(panel.debugWindow.windowNumber)")
@@ -56,6 +60,7 @@ struct DebugTour {
                 await tour.closeOutfitCard()
             case .interactive: await tour.runInteractive()
             case .editing: await tour.runEditing()
+            case .garden: await tour.runGarden()
             }
             tour.log("DONE")
         }
@@ -109,6 +114,62 @@ struct DebugTour {
 
         await runDragChecks()
         check("the panel never took the keyboard", !window.isKeyWindow)
+    }
+
+    private func runGarden() async {
+        guard ProcessInfo.processInfo.environment["YIYU_DATA_DIR"]?.isEmpty == false else {
+            check("the garden tour runs on a throwaway data folder (YIYU_DATA_DIR)", false)
+            return
+        }
+        panel.keepsKeyboardAway = true
+        let appearance = appearanceWindow.model
+        let gallery = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 620),
+                               styleMask: [.titled], backing: .buffered, defer: false)
+        gallery.isReleasedWhenClosed = false
+        gallery.title = "一隅 · 时节花景（测试预览）"
+        gallery.contentView = NSHostingView(rootView: GardenGallery())
+        gallery.center()
+        gallery.orderFrontRegardless()
+        for skin in Skin.builtIns {
+            appearance.select(skin.id)
+            gallery.appearance = NSAppearance(named: skin.palette.isDark ? .darkAqua : .aqua)
+            await settle()
+            await step("garden-\(skin.id)", window: gallery)
+        }
+        gallery.close()
+        appearance.select(Skin.default.id)
+
+        let weather = weatherWindow.model
+        let originalState = weather.state
+        var previewCalendar = Calendar(identifier: .gregorian)
+        previewCalendar.timeZone = weather.city?.calendar(basedOn: model.calendar).timeZone ?? model.calendar.timeZone
+        let months = [1, 3, 4, 5, 7, 9, 10, 12]
+        for (flower, month) in zip(GardenFlower.allCases, months) {
+            let date = previewCalendar.date(from: DateComponents(year: 2026, month: month, day: 15, hour: 12))!
+            weather.setGardenForTour(at: date, snapshot: nil)
+            await settle()
+            check("the live badge follows \(flower.name) without weather", weather.garden.flower == flower)
+            check("the menu bar follows \(flower.name)", statusBar.debugFlower == flower)
+            await step("badge-\(flower.rawValue)")
+        }
+        if let city = weather.city {
+            let date = previewCalendar.date(from: DateComponents(year: 2026, month: 7, day: 25, hour: 21))!
+            let fresh = WeatherSnapshot(
+                cityID: city.id, fetchedAt: date,
+                current: CurrentWeather(temperature: 10, feelsLike: 8, humidity: 0.9, windScale: 5,
+                                        condition: WeatherCondition(code: "305", text: "小雨")), hours: [], days: []
+            )
+            weather.setGardenForTour(at: date, snapshot: fresh)
+            await settle()
+            check("fresh weather reaches the live badge", weather.garden.weather == .rain && weather.garden.isWindy && weather.garden.isNight)
+            await step("badge-night-rain-wind")
+            weather.setGardenForTour(at: date.addingTimeInterval(6 * 3600), snapshot: fresh)
+            await settle()
+            check("stale weather leaves the seasonal flower", weather.garden.weather == .quiet && !weather.garden.isWindy)
+            await step("badge-stale-weather")
+        }
+        weather.setGardenForTour(at: Date(), snapshot: originalState.currentSnapshot)
+        check("the garden preview never took the keyboard", !window.isKeyWindow)
     }
 
     /// Drives the drag handles through the same steps a mouse drag uses, without making the panel key.

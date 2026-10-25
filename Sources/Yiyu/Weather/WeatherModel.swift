@@ -57,6 +57,10 @@ final class WeatherModel {
     var snapshot: WeatherSnapshot? { state.currentSnapshot }
     var isConfigured: Bool { QWeatherAPI(host: settings.apiHost) != nil && hasKey && city != nil }
 
+    var garden: GardenScene {
+        GardenScene.resolve(at: now, city: city, snapshot: snapshot, calendar: baseCalendar)
+    }
+
     var advice: OutfitAdvice? {
         snapshot.flatMap { OutfitAdvisor.advice(for: $0, now: now, calendar: cityCalendar) }
     }
@@ -235,6 +239,12 @@ final class WeatherModel {
 
     #if DEBUG
     static let tourKey = "mock-key"
+
+    /// In-memory clock/weather fixtures for screenshots; never saved or used in release builds.
+    func setGardenForTour(at date: Date, snapshot: WeatherSnapshot?) {
+        now = date
+        state = state.with(snapshot: snapshot)
+    }
 
     /// The UI tour points the app at scripts/mock-qweather-server.py instead of 和风天气.
     private func applyTourOverride() {

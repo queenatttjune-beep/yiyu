@@ -18,9 +18,13 @@ if [ "${1:-}" = "--editing" ]; then
   MODE="editing"
   echo "Editing tour: the test panel will take keyboard focus while checking save and cancel."
 fi
+if [ "${1:-}" = "--garden" ]; then
+  MODE="garden"
+fi
 
 OUT="build/tour"
 [ "$MODE" = "editing" ] && OUT="build/editing-tour"
+if [ "$MODE" = "garden" ]; then OUT="build/garden-tour"; fi
 BUNDLE="$OUT/一隅-tour.app"
 LOG="$OUT/tour.log"
 TIMEOUT_SECONDS=120
@@ -31,9 +35,7 @@ mkdir -p "$OUT/data" "$BUNDLE/Contents/MacOS"
 swift build
 cp "$(swift build --show-bin-path)/Yiyu" "$BUNDLE/Contents/MacOS/Yiyu"
 cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
-TOUR_BUNDLE_ID="$(plutil -extract CFBundleIdentifier raw Resources/Info.plist).tour"
-[ "$MODE" = "editing" ] && TOUR_BUNDLE_ID="$TOUR_BUNDLE_ID.editing"
-plutil -replace CFBundleIdentifier -string "$TOUR_BUNDLE_ID" "$BUNDLE/Contents/Info.plist"
+plutil -replace CFBundleIdentifier -string "$(plutil -extract CFBundleIdentifier raw Resources/Info.plist).tour.$MODE" "$BUNDLE/Contents/Info.plist"
 codesign --force --sign - "$BUNDLE" 2>/dev/null
 
 # Fake AI and 和风天气 services on localhost, so the diary-polish and weather steps run without real keys.

@@ -1,0 +1,47 @@
+{
+  "tool": "built-in image_gen",
+  "composition": "Round window behind; plant enters diagonally from outside lower left, occludes the rim, blooms upper right. No generated frame.",
+  "sources": {
+    "lotus": {
+      "file": "source/lotus.png",
+      "generated_output": "exec-b591b138-3e99-4972-9b0e-1c1369a2c367.png",
+      "sha256": "2508bfbaf225a12ce7900ee6c02dfd945e4c42492976ae0a8541edb7df7eb31d"
+    },
+    "magnolia": {
+      "file": "source/magnolia.png",
+      "generated_output": "exec-268fb18f-4419-4669-a5c5-9a902256c9cb.png",
+      "sha256": "f5b80a5526d3ddafe00b45412148c2dcd88872fcd3f0764f9726933278460ea2"
+    },
+    "crabapple": {
+      "file": "source/crabapple.png",
+      "generated_output": "exec-0e2383b9-9a97-42ee-a906-66f92e2c97be.png",
+      "sha256": "bb7e33b52e75d89e1e754fedd4d53ea89cd295cdb54f34b89d7838412f7ef75d"
+    },
+    "gardenia": {
+      "file": "source/gardenia.png",
+      "generated_output": "exec-02fac732-76a3-4224-aa22-bac13d184731.png",
+      "sha256": "a338c814cd4ff2ac717aeb71cc2bca27f93412f087ced95ced9b8090ac75474d"
+    },
+    "osmanthus": {
+      "file": "source/osmanthus.png",
+      "generated_output": "exec-ab51e8a3-cd28-4b32-967d-4a0ab01c16f3.png",
+      "sha256": "50550d356901cc6c5df0f892c371b3df2b50827a921614018cf840f967efd01d"
+    },
+    "chrysanthemum": {
+      "file": "source/chrysanthemum.png",
+      "generated_output": "exec-c745c49c-065d-4605-895b-1df85b49ed46.png",
+      "sha256": "44a369212f10f7db89a4cc6f875656f6fecc500823e7dbb2aab1abb479a52039"
+    },
+    "camellia": {
+      "file": "source/camellia.png",
+      "generated_output": "exec-a04bc397-1ead-4122-a800-e745b01eb20e.png",
+      "sha256": "ec23cc04f2f9e9fa2ece85e83d93f709442404a0117e6639373504baa8e1adbb"
+    },
+    "plum": {
+      "file": "source/plum.png",
+      "generated_output": "exec-e58d37d7-efcb-4af2-8404-73258c4aff67.png",
+      "sha256": "647e5bbe2a0cdeea71266ff08207db479aceb897c2363956a3225df19242a59e"
+    }
+  },
+  "prompts_file": "composition-prompts.json"
+}

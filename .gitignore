@@ -2,3 +2,13 @@
 build/
 .swiftpm/
 .DS_Store
+
+# Local design candidates and verification output; keep final garden sources/masters.
+/design/icon/flower-redesign/
+/design/icon/seasonal-garden/before-window-overlap/
+/design/icon/seasonal-garden/native-preview.png
+/design/icon/seasonal-garden/window-overlap-comparison.png
+/design/icon/seasonal-garden/generation.json
+/design/icon/seasonal-garden/validation.json
+/design/icon/seasonal-garden/vectorization.json
+__pycache__/
