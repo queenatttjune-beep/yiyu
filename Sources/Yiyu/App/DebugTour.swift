@@ -47,11 +47,15 @@ struct DebugTour {
         )
         Task {
             tour.log("WINDOW \(panel.debugWindow.windowNumber)")
+            if mode == .gallery {
+                tour.reportStrayClicks()
+            }
             try? await Task.sleep(for: .seconds(1))
             switch mode {
             case .gallery:
                 await tour.runGallery()
                 await tour.runSkins()
+                await tour.runSky()
                 await tour.closeOutfitCard()
             case .interactive: await tour.runInteractive()
             }
@@ -264,6 +268,114 @@ struct DebugTour {
             check("the weather settings window opens", false)
         }
         weatherWindow.close()
+    }
+
+    /// The weather painted on the panel, the badge and the menu bar icon. The mock forecast says it is
+    /// drizzling now; every other kind of weather is forced through `WeatherModel.sceneOverride`.
+    private func runSky() async {
+        guard ProcessInfo.processInfo.environment["YIYU_TOUR_WEATHER_URL"] != nil else { return }
+        let weather = weatherWindow.model
+        let fade: Duration = .seconds(1.7)
+        ui.tab = .today
+        check("drizzle outside paints drizzle on the panel", weather.scene == WeatherScene(rain: .faint, mist: .faint))
+        check("the badge names the weather outside",
+              PanelBadge(todaySummary: "", dueReminders: 0, weather: weather.briefLine).hint.contains("杭州 小雨 20°"))
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            log("INFO reduce motion is on, so the weather stands still")
+        }
+        await step("sky-drizzle")
+        // Drawn frame by frame in the app, the drizzle took about 10% of a core; as layers it is ~0%.
+        check("the drizzle costs the app almost no CPU", await cpuPercent(over: .seconds(3)) < 5)
+
+        let settings = weather.settings
+        try? weather.save(host: settings.apiHost, newKey: "", city: settings.city, briefing: settings.briefing, showsScene: false)
+        check("turning the weather scene off calms the panel", weather.scene.isCalm)
+        try? await Task.sleep(for: fade)
+        await step("sky-off")
+        try? weather.save(host: settings.apiHost, newKey: "", city: settings.city, briefing: settings.briefing, showsScene: true)
+        try? await Task.sleep(for: fade)
+
+        let scenes = [("rain", "307"), ("sunny", "100"), ("night", "150"), ("snow", "401"), ("fog", "501")]
+        for (name, code) in scenes {
+            weather.sceneOverride = WeatherScene(code: code)
+            await settle()
+            await step("sky-\(name)")
+            if name == "rain" {
+                await step("sky-rain-later")
+            }
+        }
+        appearanceWindow.model.select("xuanzhi")
+        for (name, code) in [("sunny", "100"), ("night", "150"), ("snow", "401")] {
+            weather.sceneOverride = WeatherScene(code: code)
+            await settle()
+            await step("sky-\(name)-light")
+        }
+        appearanceWindow.model.select(Skin.default.id)
+        panel.collapse()
+        for (name, code) in [("drizzle", "309")] + scenes.dropFirst() {
+            weather.sceneOverride = WeatherScene(code: code)
+            await settle()
+            await step("badge-\(name)")
+        }
+        weather.sceneOverride = nil
+        panel.expand(focus: false)
+        await settle()
+        saveStatusBarIcons()
+    }
+
+    /// The share of one core the app used while waiting `duration`.
+    private func cpuPercent(over duration: Duration) async -> Double {
+        func cpuSeconds() -> Double {
+            var usage = rusage()
+            getrusage(RUSAGE_SELF, &usage)
+            let user = Double(usage.ru_utime.tv_sec) + Double(usage.ru_utime.tv_usec) / 1e6
+            let system = Double(usage.ru_stime.tv_sec) + Double(usage.ru_stime.tv_usec) / 1e6
+            return user + system
+        }
+        let start = cpuSeconds()
+        let clock = ContinuousClock.now
+        try? await Task.sleep(for: duration)
+        let elapsed = ContinuousClock.now - clock
+        let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+        let percent = (cpuSeconds() - start) / seconds * 100
+        log("INFO CPU \(Int(percent.rounded()))% while it drizzles")
+        return percent
+    }
+
+    /// The gallery never clicks, so a click on one of its windows came from someone using the Mac
+    /// meanwhile. It can collapse the panel or hand it the keyboard, and make later checks fail.
+    private func reportStrayClicks() {
+        _ = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+            let target = event.window === window ? "the panel" : (event.window?.title ?? "a window")
+            log("INFO a click from outside the tour reached \(target); later checks may fail because of it")
+            return event
+        }
+    }
+
+    /// The menu bar icon for every kind of weather, side by side at 4× in `icons/statusbar.png`
+    /// (a subfolder, so it does not count as a step's screenshot).
+    private func saveStatusBarIcons() {
+        guard let shots = ProcessInfo.processInfo.environment["YIYU_TOUR_SHOTS"] else { return }
+        let motifs: [WeatherScene.Motif] = [.blossom, .sun, .moon, .rain, .snow, .mist]
+        let cell: CGFloat = 26
+        guard let strip = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(cell) * motifs.count * 4, pixelsHigh: Int(cell) * 4,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return }
+        strip.size = NSSize(width: cell * CGFloat(motifs.count), height: cell)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: strip)
+        NSColor.white.setFill()
+        NSRect(origin: .zero, size: strip.size).fill()
+        for (index, motif) in motifs.enumerated() {
+            StatusBarIcon.image(for: motif).draw(in: NSRect(x: CGFloat(index) * cell + 4, y: 4, width: 18, height: 18))
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        let folder = URL(fileURLWithPath: shots).appendingPathComponent("icons", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let written = (try? strip.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent("statusbar.png"))) != nil
+        check("the menu bar icons for every kind of weather are drawn", written)
     }
 
     /// Last, so the skin screenshots still show the card.

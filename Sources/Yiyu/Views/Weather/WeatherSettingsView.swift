@@ -1,7 +1,8 @@
 import SwiftUI
 import YiyuCore
 
-/// 天气设置: the 和风天气 account, the city and the morning outfit notification.
+/// 天气设置: the 和风天气 account, the city, the morning outfit notification and whether the
+/// panel follows the weather.
 struct WeatherSettingsView: View {
     private static let consoleURL = URL(string: "https://console.qweather.com")
 
@@ -14,6 +15,7 @@ struct WeatherSettingsView: View {
     @State private var city: WeatherCity?
     @State private var isBriefingOn: Bool
     @State private var briefingTime: Date
+    @State private var showsScene: Bool
     @State private var isSearching = false
     @State private var searchMessage: String?
     @State private var saveMessage: String?
@@ -25,6 +27,7 @@ struct WeatherSettingsView: View {
         _city = State(initialValue: settings.city)
         _isBriefingOn = State(initialValue: settings.briefing.isEnabled)
         _briefingTime = State(initialValue: Self.time(hour: settings.briefing.hour, minute: settings.briefing.minute))
+        _showsScene = State(initialValue: settings.showsScene)
     }
 
     var body: some View {
@@ -32,10 +35,11 @@ struct WeatherSettingsView: View {
             accountSection
             citySection
             briefingSection
+            sceneSection
             statusSection
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 640)
+        .frame(width: 480, height: 720)
     }
 
     private var accountSection: some View {
@@ -106,6 +110,18 @@ struct WeatherSettingsView: View {
         }
     }
 
+    private var sceneSection: some View {
+        Section {
+            Toggle("面板跟着天气变化", isOn: $showsScene)
+        } header: {
+            Text("天气氛围")
+        } footer: {
+            Text("下雨时面板上飘着蒙蒙细雨，晴天洒着阳光，晴夜有月光和星星，下雪、起雾也会画出来；收起时的小圆标和菜单栏图标也跟着变。系统设置里打开「减弱动态效果」时，画面是静止的。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var statusSection: some View {
         Section {
             if let message = saveMessage ?? model.problem ?? model.storageProblem {
@@ -156,7 +172,7 @@ struct WeatherSettingsView: View {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: briefingTime)
         let briefing = BriefingSchedule(isEnabled: isBriefingOn, hour: parts.hour ?? 7, minute: parts.minute ?? 30)
         do {
-            try model.save(host: host, newKey: newKey, city: city, briefing: briefing)
+            try model.save(host: host, newKey: newKey, city: city, briefing: briefing, showsScene: showsScene)
             newKey = ""
             saveMessage = nil
         } catch {

@@ -7,11 +7,14 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
     public let apiHost: String
     public let city: WeatherCity?
     public let briefing: BriefingSchedule
+    /// Whether the panel, the badge and the menu bar icon follow the weather (`WeatherScene`).
+    public let showsScene: Bool
 
-    public init(apiHost: String, city: WeatherCity?, briefing: BriefingSchedule) {
+    public init(apiHost: String, city: WeatherCity?, briefing: BriefingSchedule, showsScene: Bool = true) {
         self.apiHost = apiHost
         self.city = city
         self.briefing = briefing
+        self.showsScene = showsScene
     }
 
     public init(from decoder: Decoder) throws {
@@ -19,7 +22,8 @@ public struct WeatherSettings: Codable, Equatable, Sendable {
         self.init(
             apiHost: try container.decodeIfPresent(String.self, forKey: .apiHost) ?? "",
             city: try container.decodeIfPresent(WeatherCity.self, forKey: .city),
-            briefing: try container.decodeIfPresent(BriefingSchedule.self, forKey: .briefing) ?? .default
+            briefing: try container.decodeIfPresent(BriefingSchedule.self, forKey: .briefing) ?? .default,
+            showsScene: try container.decodeIfPresent(Bool.self, forKey: .showsScene) ?? true
         )
     }
 }

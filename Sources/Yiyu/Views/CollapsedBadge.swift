@@ -12,17 +12,21 @@ struct CollapsedBadge: View {
     @State private var isHovering = false
     @State private var isHopping = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Optional, so previews of the panel without weather still draw.
+    @Environment(WeatherModel.self) private var weather: WeatherModel?
 
     private var badge: PanelBadge {
-        PanelBadge(todaySummary: model.todaySummary, dueReminders: model.dueReminders.count)
+        PanelBadge(todaySummary: model.todaySummary, dueReminders: model.dueReminders.count, weather: weather?.briefLine)
     }
 
     var body: some View {
+        let scene = weather?.scene ?? .calm
         ZStack(alignment: .topTrailing) {
             Circle()
                 .fill(Theme.paper)
                 .overlay(Circle().strokeBorder(Theme.goldFaint, lineWidth: 0.8))
-                .overlay(MoonGateMark().padding(2))
+                .overlay(GateSky(scene: scene).padding(2))
+                .overlay(MoonGateMark(drawsMoonlight: scene.isCalm).padding(2))
             if badge.needsAttention {
                 Circle()
                     .fill(Theme.seal)

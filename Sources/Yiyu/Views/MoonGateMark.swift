@@ -2,6 +2,7 @@ import SwiftUI
 
 /// A garden moon gate with a plum branch slanting in through it: the round badge is the gate, and
 /// inside it a small world. Drawn on a 44 × 44 grid and scaled to fit, in the skin's own colours.
+/// When there is weather to show, `GateSky` paints the opening underneath instead of the moonlight.
 struct MoonGateMark: View {
     private static let grid: CGFloat = 44
     private static let center = CGPoint(x: 22, y: 22)
@@ -20,9 +21,12 @@ struct MoonGateMark: View {
         (CGPoint(x: 27.6, y: 18.2), 1),
     ]
 
+    var drawsMoonlight = true
+
     var body: some View {
         // Read the colours here rather than inside the canvas, so a change of skin redraws the mark.
         let colors = Colors(paper: Theme.paper, accent: Theme.gold, ink: Theme.ink)
+        let drawsMoonlight = drawsMoonlight
         Canvas { context, size in
             let scale = min(size.width, size.height) / Self.grid
             context.translateBy(
@@ -30,7 +34,7 @@ struct MoonGateMark: View {
                 y: (size.height - Self.grid * scale) / 2
             )
             context.scaleBy(x: scale, y: scale)
-            Self.draw(in: &context, colors: colors)
+            Self.draw(in: &context, colors: colors, drawsMoonlight: drawsMoonlight)
         }
         .accessibilityHidden(true)
     }
@@ -41,14 +45,16 @@ struct MoonGateMark: View {
         let ink: Color
     }
 
-    private static func draw(in context: inout GraphicsContext, colors: Colors) {
+    private static func draw(in context: inout GraphicsContext, colors: Colors, drawsMoonlight: Bool) {
         let accent = GraphicsContext.Shading.color(colors.accent)
         let gate = Path(ellipseIn: CGRect(
             x: center.x - gateRadius, y: center.y - gateRadius, width: gateRadius * 2, height: gateRadius * 2
         ))
 
         // Moonlight in the opening, then the gate's rim.
-        context.fill(gate, with: .color(colors.accent.opacity(0.12)))
+        if drawsMoonlight {
+            context.fill(gate, with: .color(colors.accent.opacity(0.12)))
+        }
         context.stroke(gate, with: accent, lineWidth: ringWidth)
 
         // Where the trunk crosses the rim, part the rim so the branch reads as passing in front of it.

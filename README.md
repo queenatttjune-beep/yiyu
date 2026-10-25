@@ -28,7 +28,7 @@ cd yiyu
 | 切换页面 | 点页签，或 `⌘1`–`⌘5` |
 | 隐藏 / 显示、登录时打开、退出 | 菜单栏右侧的月门图标 |
 | 换皮肤、改配色和字体 | 面板右上角的 `⋯` › 外观与皮肤，或菜单栏图标 › 外观与皮肤… |
-| 天气和穿衣建议 | 点顶部的天气，或 `⋯` › 天气设置…，见「天气与穿衣」 |
+| 天气和穿衣建议 | 点顶部的天气，或 `⋯` › 天气设置…，见「天气与穿衣」「天气氛围」 |
 
 - **今天**：只放今天要做的事。没做完的会留到第二天，标上「昨天」「3天前」。设置好天气后，最上面会有一张穿衣建议卡片。
 - **待办**：所有想到要做的事。点右边的太阳就排进今天；右键可以「明天做」或改名，双击标题也能改。
@@ -73,6 +73,27 @@ cd yiyu
 - 每 30 分钟刷新一次，一次 3 个请求，一个月大约 4500 次，在和风天气每月 5 万次的免费额度之内。取不到时会显示上次的天气，超过 6 小时的会变淡。
 - 密钥只存在这台 Mac 的钥匙串里；发给和风天气的只有城市的经纬度，待办、日记这些都不会发出去。
 
+## 天气氛围
+
+设置好天气以后，面板会跟着窗外的天气变：
+
+| 窗外 | 面板 | 收起时的小圆标 | 菜单栏图标 |
+|---|---|---|---|
+| 小雨、毛毛雨 | 蒙蒙细雨斜斜地飘，带一层薄雾 | 月洞门里飘着雨丝 | 门里几道雨丝 |
+| 中雨、大雨、雷阵雨 | 雨丝更密、更快，仍是细线 | 同上，更密 | 同上 |
+| 晴天 | 右上角（温度那里）洒下暖光，几道光束慢慢摆动 | 门里一轮太阳 | 门里一个太阳 |
+| 晴夜 | 右上角一点月光，深色皮肤上还有星星闪烁 | 门里一弯新月和星星 | 门里一弯新月 |
+| 雪 | 雪花慢慢落下 | 门里落雪 | 门里几点雪 |
+| 雾、霾、沙尘 | 几层薄雾左右飘移 | 门里飘雾 | 门里几道横线 |
+| 多云、阴 | 和平时一样 | 和平时一样（门里一枝梅） | 和平时一样 |
+
+雨雪越往下越淡，不挡清单上的字；浅色皮肤上雨丝是铅灰色，雪是带灰边的白点。用的是最近一次的实况，超过一小时就改看这个钟点的逐小时预报；预报超过 6 小时没更新就不再画。
+
+- 动画交给系统的 Core Animation 去跑，一隅自己几乎不占 CPU（实测下雨时约 0%）。
+- 系统设置 › 辅助功能 › 显示 里打开「减弱动态效果」时，画面是静止的。
+- 不想要的话，在天气设置里关掉「面板跟着天气变化」，面板、小圆标和菜单栏图标都回到原样。
+- Finder 和启动台里的 App 图标是固定的，不跟天气变。
+
 ## 外观与皮肤
 
 内置六款皮肤：深色的磁青泥金、竹青、黛紫，浅色的宣纸、月白、藕荷。在面板右上角的 `⋯` 或菜单栏图标里打开「外观与皮肤」，点一下就换，屏幕角落的面板马上跟着变。
@@ -91,15 +112,15 @@ cd yiyu
 ./scripts/test.sh                 # 核心逻辑单元测试（Swift Testing）
 ./scripts/build-app.sh            # 打包到 build/一隅.app
 ./scripts/build-app.sh --install  # 打包、替换 /Applications/一隅.app 并启动
-./scripts/ui-tour.sh              # 界面冒烟测试：示例数据跑一遍各页面并截图到 build/tour/（含用本地假 AI 服务测润色、假和风天气测天气）
+./scripts/ui-tour.sh              # 界面冒烟测试：示例数据跑一遍各页面并截图到 build/tour/（含用本地假 AI 服务测润色、假和风天气测天气和天气氛围）
 ```
 
-`ui-tour.sh --interactive` 还会模拟点击和打字，期间测试面板会占用键盘约 15 秒，运行时不要在别处打字。
+`ui-tour.sh --interactive` 还会模拟点击和打字，期间测试面板会占用键盘约 15 秒，运行时不要在别处打字。两种模式都在真实桌面上跑：运行时点到测试面板，它会收起或抢走键盘，后面的检查可能失败，日志里会记一句「a click from outside the tour」。菜单栏图标的各种天气画在 `build/tour/icons/statusbar.png`。
 
 代码结构：
 
-- `Sources/YiyuCore/` 纯逻辑，不依赖界面：数据模型、待办/提醒/备忘/日记的增删改（都返回新数组）、中文时间解析 `QuickTimeParser`、润色的风格与请求 `WritingStyle` / `Polish`、皮肤 `Skin` / `SkinBook` 与它的存储 `AppearanceStore`、和风天气的请求和解析 `QWeatherAPI` / `QWeatherResponse`、穿衣规则 `OutfitAdvisor`、早晨提醒的时间 `MorningBriefing`、天气设置与缓存 `WeatherStore`、JSON 存储 `DataStore`、日期文案 `Labels`。
+- `Sources/YiyuCore/` 纯逻辑，不依赖界面：数据模型、待办/提醒/备忘/日记的增删改（都返回新数组）、中文时间解析 `QuickTimeParser`、润色的风格与请求 `WritingStyle` / `Polish`、皮肤 `Skin` / `SkinBook` 与它的存储 `AppearanceStore`、和风天气的请求和解析 `QWeatherAPI` / `QWeatherResponse`、穿衣规则 `OutfitAdvisor`、早晨提醒的时间 `MorningBriefing`、天气设置与缓存 `WeatherStore`、天气氛围 `WeatherScene` 和雨雪的落点 `PrecipitationField`、JSON 存储 `DataStore`、日期文案 `Labels`。
 - `Sources/Yiyu/AI/` AI 润色：钥匙串里的密钥、AI 设置、一次只跑一个请求的 `DiaryPolisher`。
 - `Sources/Yiyu/App/` 应用外壳：浮动面板、全局快捷键（Carbon，无需辅助功能权限）、菜单栏、系统通知、登录项、`AppModel`（唯一修改数据的地方，改动后 0.6 秒自动保存）、`AppearanceModel`（皮肤设置，同样自动保存）和外观设置窗口。
 - `Sources/Yiyu/Weather/` 天气：联网取数的 `WeatherClient`，和负责定时刷新、失败退避、发早晨通知的 `WeatherModel`。
-- `Sources/Yiyu/Views/` SwiftUI 页面；`Theme` 从当前皮肤取颜色和字体，`Views/Appearance/` 是外观设置页，`Views/Weather/` 是顶部天气、穿衣卡片和天气设置页。
+- `Sources/Yiyu/Views/` SwiftUI 页面；`Theme` 从当前皮肤取颜色和字体，`Views/Appearance/` 是外观设置页，`Views/Weather/` 是顶部天气、穿衣卡片和天气设置页，`Views/Sky/` 是天气氛围：面板背后和小圆标月洞门里的 Core Animation 图层（雨雪用粒子发射器，光和雾用图层动画）。菜单栏图标在 `App/StatusBarIcon.swift`。

@@ -18,7 +18,7 @@ fi
 OUT="build/tour"
 BUNDLE="$OUT/一隅-tour.app"
 LOG="$OUT/tour.log"
-TIMEOUT_SECONDS=120
+TIMEOUT_SECONDS=180
 
 rm -rf "$OUT"
 mkdir -p "$OUT/data" "$BUNDLE/Contents/MacOS"
@@ -76,6 +76,17 @@ while [ $SECONDS -lt $deadline ]; do
   done
   grep -q '^TOUR DONE' "$LOG" && break
 done
+
+# Two shots of heavy rain (no mist drifting) a moment apart must differ, unless Reduce Motion stills it.
+before="$(ls "$OUT"/*-sky-rain.png 2>/dev/null | head -1)"
+after="$(ls "$OUT"/*-sky-rain-later.png 2>/dev/null | head -1)"
+if [ -s "$before" ] && [ -s "$after" ] && ! grep -q '^TOUR INFO reduce motion' "$LOG"; then
+  if cmp -s "$before" "$after"; then
+    echo "TOUR FAIL the rain falls" >>"$LOG"
+  else
+    echo "TOUR PASS the rain falls" >>"$LOG"
+  fi
+fi
 
 grep -E '^TOUR (PASS|FAIL)' "$LOG" | sed 's/^TOUR //'
 if ! grep -q '^TOUR DONE' "$LOG"; then

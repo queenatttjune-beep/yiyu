@@ -68,7 +68,16 @@ struct WeatherStoreTests {
         #expect(state.settings.apiHost == "abcxyz.qweatherapi.com")
         #expect(state.settings.city == nil)
         #expect(state.settings.briefing == .default)
+        #expect(state.settings.showsScene)
         #expect(state.snapshot == nil)
+    }
+
+    @Test func turningTheWeatherSceneOffIsSaved() throws {
+        let store = makeStore()
+        let settings = WeatherSettings(apiHost: "h", city: WeatherSamples.hangzhou, briefing: .default, showsScene: false)
+        try store.save(WeatherState.empty.with(settings: settings))
+        #expect(try store.load().state.settings.showsScene == false)
+        #expect(WeatherSettings.default.showsScene)
     }
 
     @Test func aForecastForAnotherCityIsNotUsed() {
