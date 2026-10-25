@@ -91,6 +91,72 @@ struct ReminderBookTests {
         #expect(original[0].fireAt == Fixtures.date(2026, 10, 25, 9))
     }
 
+    @Test func editingContentPreservesIdentityScheduleAndCompletion() {
+        let original = reminder("旧内容", at: Fixtures.date(2026, 10, 25, 9), isDone: true)
+        let other = reminder("另一条", at: Fixtures.date(2026, 10, 26, 8))
+        let edited = ReminderBook.editing(
+            original.id, title: " 新内容 \n", fireAt: original.fireAt, repeatRule: .none,
+            in: [original, other], now: now, calendar: calendar
+        )
+        #expect(edited[0].title == "新内容")
+        #expect(edited[0].id == original.id)
+        #expect(edited[0].createdAt == original.createdAt)
+        #expect(edited[0].fireAt == original.fireAt)
+        #expect(edited[0].isDone)
+        #expect(edited[1] == other)
+        #expect(original.title == "旧内容")
+    }
+
+    @Test func editingScheduleReopensAndReplacesTheSeriesWithoutAddingCopies() {
+        let original = reminder("吃药", at: Fixtures.date(2026, 10, 26, 8), rule: .daily, isDone: true)
+        let date = Fixtures.date(2026, 10, 27, 9, 30)
+        let edited = ReminderBook.editing(
+            original.id, title: "早餐后吃药", fireAt: date, repeatRule: .weekdays,
+            in: [original], now: now, calendar: calendar
+        )
+        #expect(edited.count == 1)
+        #expect(edited[0].id == original.id)
+        #expect(edited[0].fireAt == date)
+        #expect(edited[0].repeatRule == .weekdays)
+        #expect(!edited[0].isDone)
+        let scheduled = ReminderBook.occurrences(of: edited, after: now, days: 7, limit: 60, calendar: calendar)
+        #expect(scheduled.first?.date == date)
+        #expect(scheduled.allSatisfy { $0.reminder.title == "早餐后吃药" })
+        #expect(scheduled.allSatisfy { calendar.component(.hour, from: $0.date) == 9 })
+    }
+
+    @Test func changingOnlyRepeatRuleReopensAndSkipsNonMatchingDays() {
+        let original = reminder("站会", at: Fixtures.date(2026, 10, 25, 15), isDone: true)
+        let edited = ReminderBook.editing(
+            original.id, title: original.title, fireAt: original.fireAt, repeatRule: .weekdays,
+            in: [original], now: now, calendar: calendar
+        )[0]
+        #expect(edited.fireAt == Fixtures.date(2026, 10, 26, 15))
+        #expect(edited.repeatRule == .weekdays)
+        #expect(!edited.isDone)
+    }
+
+    @Test func removingRepeatKeepsChosenTimeEvenWhenItIsPast() {
+        let original = reminder("取药", at: Fixtures.date(2026, 10, 24, 8), rule: .daily)
+        let edited = ReminderBook.editing(
+            original.id, title: original.title, fireAt: original.fireAt, repeatRule: .none,
+            in: [original], now: now, calendar: calendar
+        )[0]
+        #expect(edited.repeatRule == .none)
+        #expect(edited.fireAt == original.fireAt)
+        #expect(ReminderBook.due([edited], now: now) == [edited])
+    }
+
+    @Test func invalidEditsKeepTheEntireReminderUnchanged() {
+        let original = [reminder("保留", at: Fixtures.date(2026, 10, 25, 9), isDone: true)]
+        for id in [original[0].id, UUID()] {
+            #expect(ReminderBook.editing(
+                id, title: id == original[0].id ? " \n " : "不存在", fireAt: now, repeatRule: .weekly,
+                in: original, now: now, calendar: calendar
+            ) == original)
+        }
+    }
+
     @Test func snoozingOneOffMovesItButSnoozingSeriesAddsAOneOffCopy() {
         let oneOff = reminder("开会", at: Fixtures.date(2026, 10, 25, 9))
         let series = reminder("吃药", at: Fixtures.date(2026, 10, 25, 8), rule: .daily)

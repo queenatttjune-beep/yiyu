@@ -13,6 +13,7 @@ struct DebugTour {
     enum Mode: String {
         case gallery
         case interactive
+        case editing
     }
 
     private static let settle: Duration = .milliseconds(450)
@@ -54,6 +55,7 @@ struct DebugTour {
                 await tour.runSkins()
                 await tour.closeOutfitCard()
             case .interactive: await tour.runInteractive()
+            case .editing: await tour.runEditing()
             }
             tour.log("DONE")
         }
@@ -370,6 +372,77 @@ struct DebugTour {
         check("Esc collapses and gives the keyboard back", ui.isCollapsed && !window.isKeyWindow)
     }
 
+    /// Uses only throwaway data, with real clicks and keyboard input through the row editors.
+    private func runEditing() async {
+        guard let folder = ProcessInfo.processInfo.environment["YIYU_DATA_DIR"], !folder.isEmpty else {
+            check("editing tests require a throwaway data folder (YIYU_DATA_DIR)", false)
+            return
+        }
+        panel.toggleFromHotKey()
+        model.addTodo("编辑待办测试", forToday: true)
+        await settle()
+        click(x: 90, y: 163)
+        click(x: 90, y: 163, count: 2)
+        await settle()
+        check("double-clicking a today to-do opens its existing content", currentFieldText() == "编辑待办测试")
+        await step("todo-editor")
+        pressCommand("a")
+        insert("修改后的待办")
+        submit()
+        await settle()
+        check("Return saves the to-do edit", model.todayTodos.first?.title == "修改后的待办")
+
+        click(x: 90, y: 163)
+        click(x: 90, y: 163, count: 2)
+        await settle()
+        pressCommand("a")
+        insert("这次不保存")
+        sendAction(#selector(NSResponder.cancelOperation(_:)))
+        await settle()
+        check("Escape cancels editing without collapsing the panel",
+              !ui.isCollapsed && model.todayTodos.first?.title == "修改后的待办"
+                  && currentFieldText() != "这次不保存")
+
+        ui.tab = .backlog
+        await settle()
+        click(x: 90, y: 163)
+        click(x: 90, y: 163, count: 2)
+        await settle()
+        check("the backlog also opens the saved to-do for editing", currentFieldText() == "修改后的待办")
+        pressCommand("a")
+        insert("   ")
+        submit()
+        await settle()
+        check("a blank title stays in the editor and leaves the to-do unchanged",
+              currentFieldText() == "   " && model.openTodos.first?.title == "修改后的待办")
+        sendAction(#selector(NSResponder.cancelOperation(_:)))
+        await settle()
+
+        // Keep the reminder list deterministic, without the sample's due reminders or section labels.
+        for reminder in model.data.reminders { model.deleteReminder(reminder.id) }
+        model.addReminder("编辑提醒测试", at: Date().addingTimeInterval(7200), repeatRule: .none)
+        ui.tab = .reminders
+        await settle()
+        click(x: 90, y: 183)
+        click(x: 90, y: 183, count: 2)
+        await settle()
+        check("double-clicking a reminder opens its existing content", currentFieldText() == "编辑提醒测试")
+        await step("reminder-editor")
+        pressCommand("a")
+        insert("修改后的提醒")
+        submit()
+        await settle()
+        check("Return saves the reminder edit", model.data.reminders.first?.title == "修改后的提醒")
+        await step("edited-items")
+
+        model.saveNow()
+        let saved = try? DataStore(directory: URL(fileURLWithPath: folder)).load().data
+        check("both UI edits survive reloading data.json",
+              saved?.todos.contains { $0.title == "修改后的待办" } == true
+                  && saved?.reminders.first?.title == "修改后的提醒")
+        panel.collapse()
+    }
+
     /// Every built-in skin on the panel, an edit to one, and the 外观与皮肤 window, without taking the keyboard.
     private func runSkins() async {
         // It saves and switches skins, which must never touch the user's real settings.
@@ -497,13 +570,13 @@ struct DebugTour {
     }
 
     /// `x`, `y` are points from the panel's top-left corner.
-    private func click(x: CGFloat, y: CGFloat) {
+    private func click(x: CGFloat, y: CGFloat, count: Int = 1) {
         let location = NSPoint(x: x, y: window.frame.height - y)
         for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
             guard let event = NSEvent.mouseEvent(
                 with: type, location: location, modifierFlags: [],
                 timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
-                context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0
+                context: nil, eventNumber: 0, clickCount: count, pressure: type == .leftMouseDown ? 1 : 0
             ) else { continue }
             NSApp.sendEvent(event)
         }

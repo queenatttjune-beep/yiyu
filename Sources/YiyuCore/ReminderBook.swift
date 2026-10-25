@@ -21,6 +21,31 @@ public enum ReminderBook {
         return reminders + [reminder]
     }
 
+    /// Content edits keep completion state. Changing the schedule makes the reminder active again.
+    public static func editing(
+        _ id: UUID,
+        title: String,
+        fireAt: Date,
+        repeatRule: RepeatRule,
+        in reminders: [Reminder],
+        now: Date,
+        calendar: Calendar
+    ) -> [Reminder] {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return reminders }
+        return reminders.map { reminder in
+            guard reminder.id == id else { return reminder }
+            var copy = reminder
+            copy.title = trimmed
+            if fireAt != reminder.fireAt || repeatRule != reminder.repeatRule {
+                copy.fireAt = nextFire(after: now, from: fireAt, rule: repeatRule, calendar: calendar) ?? fireAt
+                copy.repeatRule = repeatRule
+                copy.isDone = false
+            }
+            return copy
+        }
+    }
+
     public static func togglingDone(_ id: UUID, in reminders: [Reminder]) -> [Reminder] {
         reminders.map { reminder in
             guard reminder.id == id else { return reminder }
